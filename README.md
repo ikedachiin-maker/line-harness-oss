@@ -111,58 +111,64 @@ Claude Code ──→ Workers API ──→ D1
 - [Cloudflare アカウント](https://dash.cloudflare.com/sign-up)
 - [LINE Developers アカウント](https://developers.line.biz/)
 
-### 1. セットアップ
+### ワンクリックセットアップ
 
 ```bash
 git clone https://github.com/Shudesu/line-harness-oss.git
 cd line-harness-oss
-pnpm install
+bash scripts/setup.sh
 ```
 
-### 2. LINE チャネル設定
+このスクリプト1つで以下が全自動で完了します:
 
-[LINE Developers Console](https://developers.line.biz/console/) で **2つのチャネル** を作成:
+| # | 処理内容 | 手動だと… |
+|---|---------|---------|
+| 1 | 依存関係インストール | `pnpm install` |
+| 2 | Cloudflare ログイン | `npx wrangler login` |
+| 3 | アカウントID取得・設定 | whoami → wrangler.toml 手動編集 |
+| 4 | D1 データベース作成 | `npx wrangler d1 create` → ID コピペ |
+| 5 | wrangler.toml 自動書き換え | account_id, database_id を手動編集 |
+| 6 | スキーマ適用 + カラム追加 | schema.sql 実行 + ALTER TABLE ×11 |
+| 7 | public ディレクトリ準備 | mkdir + ファイル配置 |
+| 8 | シークレット6個を順番に案内 | `npx wrangler secret put` ×6 回 |
+| 9 | ビルド + Worker/管理画面デプロイ | pnpm build + wrangler deploy ×2 |
+| 10 | 次の手順を表示 | — |
+
+### LINE Developers Console で事前に必要な準備
+
+[LINE Developers Console](https://developers.line.biz/console/) で **2つのチャネル** を同じプロバイダー内に作成:
 
 1. **Messaging API チャネル** — メッセージ送受信用
 2. **LINE Login チャネル** — UUID 自動取得用（**必須**）
+   - アプリタイプ: **ウェブアプリ** にチェック
+   - LIFF アプリを作成（サイズ: Full、エンドポイント: デプロイ後の Worker URL）
+   - Scope: **openid** + **profile** にチェック
+   - 友だち追加オプション: **On (Aggressive)**
+   - リンクされたLINE公式アカウント: Messaging API のボットを選択
+   - チャネルを **「公開」** に変更
 
 > ⚠️ LINE Login チャネルがないと `/auth/line` 経由の友だち追加で UUID が取れません。
 > UUID がないとマルチアカウント統合・流入追跡が機能しません。
 
-### 3. D1 データベース作成
+### スクリプト実行後の手動設定（3つだけ）
 
-```bash
-npx wrangler d1 create line-crm
-# → 出力される database_id を apps/worker/wrangler.toml に記入
+1. **Webhook URL** — LINE Developers Console → Messaging API → Webhook URL:
+   ```
+   https://your-worker.your-subdomain.workers.dev/webhook
+   ```
+   → **「Webhook の利用」を ON**（再送は OFF のまま）
 
-npx wrangler d1 execute line-crm --file=packages/db/schema.sql
-```
+2. **コールバック URL** — LINE Login → LINE ログイン設定:
+   ```
+   https://your-worker.your-subdomain.workers.dev/auth/callback
+   ```
 
-### 4. シークレット設定
+3. **LIFF エンドポイント URL** — LINE Login → LIFF → 作成したアプリ:
+   ```
+   https://your-worker.your-subdomain.workers.dev
+   ```
 
-```bash
-npx wrangler secret put LINE_CHANNEL_SECRET
-npx wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
-npx wrangler secret put API_KEY
-npx wrangler secret put LINE_LOGIN_CHANNEL_ID
-npx wrangler secret put LINE_LOGIN_CHANNEL_SECRET
-```
-
-### 5. デプロイ
-
-```bash
-pnpm deploy:worker
-# → https://your-worker.your-subdomain.workers.dev
-```
-
-### 6. LINE Webhook 設定
-
-LINE Developers Console → Messaging API → Webhook URL:
-```
-https://your-worker.your-subdomain.workers.dev/webhook
-```
-
-### 7. 動作確認
+### 動作確認
 
 ```bash
 # 友だち追加URL（これを LP や SNS に貼る）
