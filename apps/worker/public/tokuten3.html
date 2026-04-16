@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MNP転売入門ガイド：ゼロから理解する「即金エンジン」の仕組み</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 15px; line-height: 1.9; color: #2c3e50; background: #f5f7fa; }
+.container { max-width: 800px; margin: 0 auto; padding: 40px 32px; background: #fff; }
+
+/* 表紙（ダーク背景・白文字はそのまま維持） */
+.cover { background: linear-gradient(135deg, #0f1b2d 0%, #1a2d4a 100%); color: #fff; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 60px 40px; }
+.cover-label { font-size: 14px; letter-spacing: 4px; color: #4fc3f7; text-transform: uppercase; margin-bottom: 20px; }
+.cover h1 { font-size: 34px; font-weight: 800; line-height: 1.4; margin-bottom: 16px; color: #fff; border: none; padding: 0; margin-top: 0; }
+.cover h1 span { color: #4fc3f7; }
+.cover .subtitle { font-size: 18px; color: #c9a84c; margin-bottom: 40px; }
+.cover .author { font-size: 15px; color: rgba(255,255,255,0.85); }
+.cover .company { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 8px; }
+.cover-line { width: 60px; height: 3px; background: #4fc3f7; margin: 24px auto; }
+
+/* 見出し */
+h1 { font-size: 28px; font-weight: 800; color: #1a365d; margin: 48px 0 20px; }
+h2 { font-size: 21px; font-weight: 700; color: #1a365d; border-left: 4px solid #4fc3f7; padding-left: 14px; margin: 40px 0 16px; }
+h3 { font-size: 17px; font-weight: 700; color: #1a365d; border-left: 4px solid #7ecbf5; padding-left: 12px; margin: 28px 0 12px; }
+hr { border: none; border-top: 1px solid #d0d8e4; margin: 32px 0; }
+
+p { margin-bottom: 14px; color: #2c3e50; }
+strong { font-weight: 700; color: #1a365d; }
+ul, ol { margin: 12px 0 16px 24px; }
+li { margin-bottom: 6px; color: #2c3e50; }
+
+/* 章ナンバリング */
+.chapter-num { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #1a365d; color: #4fc3f7; font-weight: 800; font-size: 18px; margin-right: 12px; flex-shrink: 0; }
+.chapter-heading { display: flex; align-items: center; font-size: 21px; font-weight: 700; color: #1a365d; border-left: 4px solid #4fc3f7; padding-left: 14px; margin: 48px 0 16px; }
+
+/* infobox（専門用語） */
+.infobox { background: #eef3f9; border-left: 4px solid #4fc3f7; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 16px 0 20px; font-size: 14px; color: #2c3e50; }
+.infobox strong { color: #1a365d; }
+
+/* テーブル */
+table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+th { background: #1a365d; color: #fff; padding: 10px 14px; text-align: left; font-weight: 700; }
+td { padding: 10px 14px; border-bottom: 1px solid #d0d8e4; color: #2c3e50; }
+tr:nth-child(even) td { background: #f0f4f9; }
+
+/* STEP丸数字 */
+.step-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: #4fc3f7; color: #fff; font-weight: 800; font-size: 14px; margin-right: 8px; flex-shrink: 0; }
+
+/* FAQアコーディオン */
+.faq-item { border: 1px solid #c8d6e5; border-radius: 8px; margin: 12px 0; overflow: hidden; }
+.faq-question { background: #eef3f9; padding: 16px 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 15px; color: #1a365d; }
+.faq-question::after { content: '+'; font-size: 20px; color: #4fc3f7; font-weight: 700; transition: transform 0.3s; }
+.faq-item.open .faq-question::after { content: '-'; }
+.faq-answer { padding: 0 20px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; color: #2c3e50; }
+.faq-item.open .faq-answer { max-height: 500px; padding: 16px 20px; }
+
+/* メリットカード */
+.merit-card { background: #f7fafd; border: 1px solid #c8d6e5; border-radius: 10px; padding: 24px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.merit-num { display: inline-block; background: #c9a84c; color: #fff; font-weight: 800; font-size: 13px; padding: 3px 12px; border-radius: 4px; margin-bottom: 10px; }
+
+/* 実績ボックス */
+.performance-box { background: #fdf8ee; border-left: 4px solid #c9a84c; border-radius: 0 8px 8px 0; padding: 20px 24px; margin: 16px 0 24px; }
+.performance-box li { color: #4a3b1f; }
+
+/* フッター */
+.page-footer { text-align: center; font-size: 12px; color: #8899aa; border-top: 1px solid #d0d8e4; padding-top: 20px; margin-top: 60px; }
+
+/* スマホ対応 */
+@media (max-width: 600px) {
+  .container { padding: 24px 16px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 15px; }
+  .chapter-heading { font-size: 18px; }
+  .cover h1 { font-size: 24px; }
+  .cover .subtitle { font-size: 15px; }
+  table { font-size: 13px; }
+  td, th { padding: 8px 10px; }
+}
+
+/* 印刷 */
+@media print {
+  body { font-size: 12px; background: #fff; }
+  .container { background: #fff; padding: 20px; }
+  .cover { page-break-after: always; min-height: auto; padding: 200px 40px; }
+  h2, h3, .chapter-heading { page-break-after: avoid; }
+  table, .infobox, .merit-card, .faq-item { page-break-inside: avoid; }
+  /* FAQ全展開 */
+  .faq-answer { max-height: none !important; padding: 16px 20px !important; overflow: visible !important; }
+  .faq-question::after { content: '-' !important; }
+  .page-footer { position: fixed; bottom: 0; left: 0; right: 0; }
+  @page { margin: 15mm 12mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <div class="cover-label">特典3</div>
+  <h1>MNP転売入門ガイド<br><span>ゼロから理解する「即金エンジン」の仕組み</span></h1>
+  <div class="cover-line"></div>
+  <div class="subtitle">専門用語ゼロからでも読める完全解説</div>
+  <div class="author">著者：池田宜史</div>
+  <div class="company">合同会社アドマーケティング</div>
+</div>
+
+<!-- 本文 -->
+<div class="container">
+
+  <h2>はじめに：このガイドの対象者と読み方</h2>
+
+  <p>このガイドは「MNP転売って何？」という状態からスタートする方のために書きました。</p>
+
+  <p>専門用語の説明から、仕組み、利益の出し方、実際の流れまで、順番に読むだけで全体像が把握できるように構成しています。難しい言葉には必ず説明を添えています。</p>
+
+  <p><strong>こんな方に読んでいただきたいです</strong></p>
+
+  <ul>
+    <li>副業を探しているが、どれが本物かわからない方</li>
+    <li>携帯の乗り換えで利益が出ると聞いたが、詳しくわからない方</li>
+    <li>物販や投資系ビジネスに挑戦したが、うまくいかなかった方</li>
+    <li>会社の給料以外の収入源を作りたい方</li>
+  </ul>
+
+  <p><strong>読み方</strong></p>
+
+  <p>全体を通して読んでいただくのが理想ですが、時間がない方はまず「2章」（MNP転売とは何か）と「4章」（どれくらい稼げるか）を先に読んでください。概要をつかんだ上で細部を確認する順番でも理解できます。</p>
+
+  <hr>
+
+  <!-- 第2章 -->
+  <div class="chapter-heading"><span class="chapter-num">2</span> 第2章：MNP転売とは？</div>
+
+  <h3>MNP（Mobile Number Portability）の仕組み</h3>
+
+  <p>MNPとは、「Mobile Number Portability（モバイル・ナンバー・ポータビリティ）」の略です。日本語にすると「携帯電話番号の持ち運び制度」です。</p>
+
+  <p>もともとは、キャリア（携帯電話会社）を乗り換えるときに、今使っている電話番号をそのまま新しいキャリアで使い続けられるようにするための制度です。2006年に導入されました。</p>
+
+  <p>たとえば、ドコモからau（UQモバイル）へ乗り換えるとき、以前は電話番号が変わっていました。今は、そのまま同じ番号を使い続けることができます。</p>
+
+  <h3>なぜ乗り換えで利益が出るのか</h3>
+
+  <p>キャリア（ドコモ、au、ソフトバンク、楽天モバイルなど）は、新しい顧客を獲得するために「乗り換えてきた人」に対して様々な特典を提供します。</p>
+
+  <p>この特典が「利益の源泉」です。主な特典は以下の2種類です。</p>
+
+  <div class="infobox">
+    <strong>特典1：キャッシュバック（CB）</strong><br>
+    乗り換えてきた顧客に現金や商品券、ポイントを渡す仕組みです。1件あたり数千円〜数万円の還元が行われます。
+  </div>
+
+  <div class="infobox">
+    <strong>特典2：端末の実質値引き</strong><br>
+    スマートフォンの本体価格を大幅に割り引いて提供する仕組みです。市場価格より大幅に安く購入した端末を、フリマアプリや買取店で売却することで差額が利益になります。
+  </div>
+
+  <p>MNP転売とは、この乗り換え特典を最大限に活用して利益を得るビジネスです。</p>
+
+  <h3>MNP転売の法的根拠（合法である理由）</h3>
+
+  <p>「乗り換えでお金をもらうのは違法ではないか」と感じる方もいます。しかし、MNP自体は総務省が定めた正式な制度であり、乗り換えること自体は何も問題ありません。</p>
+
+  <p>キャリアが自主的に提供するキャッシュバックや値引きを受け取ることも、消費者として正当な行為です。</p>
+
+  <p>ただし、以下の行為は問題になります。</p>
+
+  <ul>
+    <li>他人名義を無断で使用する</li>
+    <li>虚偽の申告をしてキャッシュバックを不正に受け取る</li>
+    <li>キャリアの規約に明示的に禁止されている行為を行う</li>
+  </ul>
+
+  <p>これらを守った上でのMNP実践は、合法的なビジネス活動です。私はこの12年間、常に合法の範囲内で実践し、500名以上の方に指導してきました。</p>
+
+  <hr>
+
+  <!-- 第3章 -->
+  <div class="chapter-heading"><span class="chapter-num">3</span> 第3章：MNP転売のメリット4つ</div>
+
+  <div class="merit-card">
+    <span class="merit-num">メリット1</span>
+    <h3>初期費用が少ない</h3>
+    <p>物販ビジネスを始めるには在庫の仕入れ資金が必要です。不動産投資なら頭金が数百万円かかります。しかしMNP転売の場合、端末購入や諸費用を合わせても、1件あたり数万円から始められます。</p>
+    <p>また、下取りスキーム（後述）を使えば、手持ちの古いスマートフォンを活用することで、初期費用をさらに抑えることが可能です。</p>
+  </div>
+
+  <div class="merit-card">
+    <span class="merit-num">メリット2</span>
+    <h3>スキル不要</h3>
+    <p>せどりや株式投資では、商品の価値を見極める目利きのスキルや、相場の読み方が必要です。MNP転売はそのような専門スキルを必要としません。</p>
+    <p>必要なのは「手順を正確に実行する」ことだけです。どのキャリアに、どの端末で、いつ乗り換えるか。この「情報と手順」さえ押さえれば、初めての方でも利益を出すことができます。</p>
+  </div>
+
+  <div class="merit-card">
+    <span class="merit-num">メリット3</span>
+    <h3>即金性（数日で現金化）</h3>
+    <p>物販ビジネスでは、仕入れから販売、入金まで1週間〜1ヶ月かかることが多いです。不動産は数年単位の投資です。</p>
+    <p>MNP転売は「乗り換え完了→端末売却→入金」の流れが数日〜2週間以内で完了します。手にした現金をすぐに次のサイクルに回せるため、資金効率が高いです。私がこれを「即金エンジン」と呼ぶのはこの理由です。</p>
+  </div>
+
+  <div class="merit-card">
+    <span class="merit-num">メリット4</span>
+    <h3>市場が消えない</h3>
+    <p>「MNPで稼げるのは今だけではないか」という疑問があります。しかし、MNP転売が成立する理由は「キャリアが顧客獲得競争をしている」ことにあります。</p>
+    <p>日本のスマートフォン市場では、ドコモ・au・ソフトバンク・楽天モバイルが継続的にシェア争いをしています。この競争がある限り、乗り換え優遇は形を変えながら続きます。規制が強化されるほど、最新情報を持つプレイヤーの価値は逆に高まります。</p>
+  </div>
+
+  <hr>
+
+  <!-- 第4章 -->
+  <div class="chapter-heading"><span class="chapter-num">4</span> 第4章：どれくらい稼げるのか</div>
+
+  <h3>1件あたりの利益目安</h3>
+
+  <p>1回の乗り換えで得られる利益（「火力」と呼びます）は、キャリアや案件の内容によって異なります。目安は以下の通りです。</p>
+
+  <table>
+    <thead><tr><th>キャリア</th><th>1件あたりの利益目安</th></tr></thead>
+    <tbody>
+      <tr><td>ドコモ</td><td>2万〜3万円</td></tr>
+      <tr><td>UQモバイル</td><td>2万5千〜3万5千円</td></tr>
+      <tr><td>ワイモバイル</td><td>3万〜4万円</td></tr>
+      <tr><td>ソフトバンク</td><td>3万〜4万円</td></tr>
+    </tbody>
+  </table>
+
+  <div class="infobox">
+    <strong>「火力」とは</strong> 1回の乗り換えで得られる利益の合計額のことです。具体的には「端末の売却益」＋「キャッシュバック（CB）」の合計で計算します。
+  </div>
+
+  <p><strong>計算例</strong></p>
+
+  <p>arrows we2（一括1円で購入できる端末の場合）</p>
+
+  <ul>
+    <li>買取店での売却価格：8,000円〜11,000円</li>
+    <li>キャッシュバック：28,000円</li>
+    <li>合計火力：約36,000円〜39,000円</li>
+  </ul>
+
+  <h3>個人で年間160万円の内訳</h3>
+
+  <p>私が設計している個人モデルの年間収益は160万円です。その内訳を示します。</p>
+
+  <p><strong>1サイクル（30日）の構成</strong></p>
+
+  <table>
+    <thead><tr><th>キャリア</th><th>1件あたり利益</th><th>回線数</th><th>小計</th></tr></thead>
+    <tbody>
+      <tr><td>ドコモ</td><td>3万円</td><td>4回線</td><td>12万円</td></tr>
+      <tr><td>UQモバイル（無限UQ）</td><td>3万円</td><td>20回線</td><td>60万円</td></tr>
+      <tr><td>ワイモバイル</td><td>4万円</td><td>5回線</td><td>20万円</td></tr>
+      <tr><td><strong>合計</strong></td><td><strong>—</strong></td><td><strong>29回線</strong></td><td><strong>92万円</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="infobox">
+    <strong>「無限UQ」とは</strong> UQモバイルを活用した回線数を最大化するスキームのことです。詳細は第5章で解説します。
+  </div>
+
+  <p>このサイクルを年2回回すことで、92万円 × 2 = 184万円。諸費用を差し引いた実手取りが年間約160万円です。</p>
+
+  <h3>法人名義を活用した場合（年間336万〜440万円）</h3>
+
+  <p>個人よりも法人名義のほうが、より多くの回線を扱えます。法人でMNPを活用すると、年間336万〜440万円の収益が見込めます。</p>
+
+  <p>法人を持っている方、あるいは法人を設立することを検討している方にとって、MNPは非常に相性のよい収益源です。士業の方との組み合わせでも「法人設立支援 + 法人MNP設計」のセット提案が実際に機能しています。</p>
+
+  <hr>
+
+  <!-- 第5章 -->
+  <div class="chapter-heading"><span class="chapter-num">5</span> 第5章：MNP転売で使われる専門用語</div>
+
+  <p>実践の場でよく出てくる用語を解説します。知らないと話についていけなくなるため、確認しておいてください。</p>
+
+  <div class="infobox">
+    <strong>MNP弾（えむえぬぴーだま）</strong><br>
+    MNPで乗り換える際に使う「元の回線」のことです。格安SIMなどで事前に用意した回線を「弾」と呼びます。鉄砲の弾を撃つように、次々と使っていくイメージです。たとえば「5弾用意する」とは「5回線分の乗り換え元を用意する」という意味です。
+  </div>
+
+  <div class="infobox">
+    <strong>CB（キャッシュバック）</strong><br>
+    乗り換えの際にキャリアや代理店から受け取る現金・ポイント・商品券などの総称です。「CB3万」は「3万円分のキャッシュバックがある」という意味です。
+  </div>
+
+  <div class="infobox">
+    <strong>火力（ひりょく）</strong><br>
+    1件の乗り換えで得られる利益の総額です。端末の粗利（売却価格 − 購入価格）＋ CBで計算します。「今月の火力は40万」は「今月の利益合計が40万円」という意味です。
+  </div>
+
+  <div class="infobox">
+    <strong>手配師（てはいし）</strong><br>
+    キャリアの代理店と繋がっており、条件のよいMNP案件を仲介してくれる人や業者のことです。手配師を通じることで、一般には公開されていない好条件の案件にアクセスできます。代表的な手配師には、全国対応の「ミスター」、関東・東北強の「Tスポット」などがいます。
+  </div>
+
+  <div class="infobox">
+    <strong>無限UQ（むげんゆーきゅー）</strong><br>
+    UQモバイルを活用した回線数最大化スキームの通称です。UQモバイルの乗り換え優遇を活用して、個人でも複数回線を扱える方法です。私の個人モデルでは、このスキームで20回線を扱っています。
+  </div>
+
+  <div class="infobox">
+    <strong>弾作り（たまづくり）</strong><br>
+    MNP乗り換えに使う「元の回線」（MNP弾）を事前に用意する作業のことです。格安SIMを契約して弾を準備してから、条件のよいキャリアに乗り換えます。
+  </div>
+
+  <hr>
+
+  <!-- 第6章 -->
+  <div class="chapter-heading"><span class="chapter-num">6</span> 第6章：MNP転売の基本的な流れ（5ステップ）</div>
+
+  <p>MNP転売の一連の流れを5つのステップで解説します。</p>
+
+  <h3><span class="step-badge">1</span> STEP 1：格安SIMを契約する（MNP弾の準備）</h3>
+  <p>最初に「乗り換え元の回線」を用意します。格安SIM（MVNO）を新規契約し、電話番号を取得します。この回線がMNP弾になります。</p>
+  <p>乗り換えのキャッシュバックを受け取るためには、「どこかのキャリアに加入している状態」が前提となるため、弾の準備は必須です。初心者の方は、まず5回線分の弾を作ることから始めます。</p>
+
+  <h3><span class="step-badge">2</span> STEP 2：MNP予約番号を取得する</h3>
+  <p>現在加入している格安SIMの会社（または既存キャリア）に連絡し、「MNP予約番号」を発行してもらいます。</p>
+  <div class="infobox">
+    <strong>MNP予約番号とは</strong> 電話番号を持ち運ぶために必要な10桁の番号です。発行後15日間有効です。この番号を乗り換え先のキャリアに提示することで、電話番号を持ち運んで乗り換えることができます。
+  </div>
+  <p>手配師経由の案件では、手配師から「予約番号を取ってきてください」と案内があります。</p>
+
+  <h3><span class="step-badge">3</span> STEP 3：キャリアに乗り換える</h3>
+  <p>取得したMNP予約番号を使って、乗り換え先のキャリア（ドコモ、UQ、ソフトバンク、ワイモバイルなど）に新規契約します。</p>
+  <p>この際、端末（スマートフォン）の購入と、キャッシュバックの受け取り条件（どの料金プランに加入するか、など）を確認します。手配師経由の場合は、指定された店舗・手順で手続きを進めます。</p>
+
+  <h3><span class="step-badge">4</span> STEP 4：キャッシュバック・端末割引を受け取る</h3>
+  <p>契約完了後、設定された条件に従ってキャッシュバックや端末割引を受け取ります。受け取りのタイミングは案件によって異なります（即日〜数週間後）。</p>
+  <p>端末を購入した場合は、買取店（ゲオ、アイモット等）に持ち込み、査定・売却します。</p>
+
+  <h3><span class="step-badge">5</span> STEP 5：利益を確定する</h3>
+  <p>端末の売却代金とキャッシュバックの合計が「火力」（1件あたりの利益）です。この利益から、格安SIM月額料金などの諸費用を差し引いた金額が純利益となります。</p>
+  <p>利益が確定したら、次のサイクルへ。新たな弾を準備し、次の案件に移ります。このサイクルを繰り返すことで、毎月安定した利益が積み上がります。</p>
+
+  <hr>
+
+  <!-- 第7章 -->
+  <div class="chapter-heading"><span class="chapter-num">7</span> 第7章：よくある質問</div>
+
+  <div class="faq-item">
+    <div class="faq-question">Q1. 本当に合法ですか？怪しくないですか？</div>
+    <div class="faq-answer">
+      <p>合法です。MNP制度は総務省が定めた正式な制度です。キャリアが提供するキャッシュバックや割引を受け取ることは、消費者として正当な行為です。</p>
+      <p>ただし、他人名義の無断使用や、キャリアの規約に違反する行為は問題になります。私のコンサルでは、常に合法の範囲内での実践方法のみを指導しています。</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question">Q2. 初期費用はどれくらいかかりますか？</div>
+    <div class="faq-answer">
+      <p>案件の内容によって異なりますが、1件あたりの初期費用（端末購入費用など）は数千円〜数万円程度です。多くの場合、端末の売却と組み合わせることで初期費用が回収できるか、むしろプラスになります。</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question">Q3. 副業でやっても会社にバレませんか？</div>
+    <div class="faq-answer">
+      <p>MNP転売は、スマートフォンの乗り換えを個人で行うものです。副業として申告が必要かどうかは、利益の金額によります。年間20万円以下の利益であれば確定申告は不要です（給与所得者の場合）。20万円を超える場合は確定申告を行ってください。</p>
+      <p>会社の副業禁止規定については、内容をご確認ください。</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question">Q4. スマートフォンに詳しくなくてもできますか？</div>
+    <div class="faq-answer">
+      <p>できます。MNP転売はスマートフォンの修理や技術的な知識を必要としません。乗り換えの手続きは店舗スタッフのサポートを受けながら進めることができます。必要な知識は「手順を正確に実行する力」だけです。</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question">Q5. 規制が強くなっているというニュースを見ましたが、大丈夫ですか？</div>
+    <div class="faq-answer">
+      <p>2025年〜2026年にかけて、総務省がMNPに関する市場検証を進めていることは事実です。しかし、規制は「一般消費者にわかりにくいまま不当なキャッシュバックを提供する行為」を対象にしており、合法的な乗り換え特典の活用を禁止するものではありません。</p>
+      <p>むしろ、規制が強まることで「情報を持たない一般プレイヤーが撤退し、正確な情報を持つコンサルの価値が高まる」という構図になっています。今が動き時です。</p>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- 第8章 -->
+  <div class="chapter-heading"><span class="chapter-num">8</span> 第8章：次のステップ</div>
+
+  <p>このガイドを読んで「自分にもできそうだ」と感じていただけましたか。</p>
+
+  <p>MNP転売は、正確な情報と正しい手順さえ持っていれば、誰でも始められるビジネスです。個人で年間160万円、法人で年間336万〜440万円という数字は、私が実際に設計し、指導してきた実績に基づいた数字です。</p>
+
+  <p>また、MNPは単体で実践するだけでなく、あなたがすでに持っているビジネスや商品に組み合わせることで「即金エンジン」として機能します。この発展的な活用方法については、特典2「業種別掛け合わせ事例集」をご覧ください。</p>
+
+  <p><strong>次のアクション</strong></p>
+
+  <p>まず一歩目として、個別面談をお申し込みください。あなたの状況（現在の収入、使える時間、目標金額）を聞いた上で、最適なMNP実践プランを一緒に設計します。</p>
+
+  <p>面談は無料です。申し込みはこちらからお願いします。</p>
+
+  <hr>
+
+  <!-- 参考実績 -->
+  <h2>参考：池田宜史のMNPコンサル実績</h2>
+
+  <div class="performance-box">
+    <ul>
+      <li>MNPコンサル歴：12年</li>
+      <li>指導実績：500名以上</li>
+      <li>月収30万〜200万円達成者：100名以上</li>
+      <li>個人モデル：年間160万円（30日で92万円 × 年2回）</li>
+      <li>法人モデル：年間336万〜440万円</li>
+      <li>広告実績：CPA 1,260円、広告費61,753円で売上798,000円</li>
+      <li>Kindle著書：「AIに働かせ自己資金0から年商1000万円」（評価 ★5.0）</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <p style="text-align:right; font-style:italic; color:#556677;">池田宜史 / 合同会社アドマーケティング<br>MNPコンサル歴12年・指導実績500名以上</p>
+
+  <div class="page-footer">合同会社アドマーケティング ｜ 無断転載・複製を禁じます</div>
+
+</div>
+
+<script>
+// FAQアコーディオン
+document.querySelectorAll('.faq-question').forEach(function(q) {
+  q.addEventListener('click', function() {
+    this.parentElement.classList.toggle('open');
+  });
+});
+</script>
+
+</body>
+</html>

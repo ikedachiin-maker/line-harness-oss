@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JV提案書テンプレート（池田式）</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 15px; line-height: 1.9; color: #2c3e50; background: #f5f7fa; }
+.container { max-width: 800px; margin: 0 auto; padding: 40px 32px; background: #fff; }
+
+/* 表紙（ダーク背景・白文字はそのまま維持） */
+.cover { background: linear-gradient(135deg, #0f1b2d 0%, #1a2d4a 100%); color: #fff; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 60px 40px; }
+.cover-label { font-size: 14px; letter-spacing: 4px; color: #4fc3f7; text-transform: uppercase; margin-bottom: 20px; }
+.cover h1 { font-size: 36px; font-weight: 800; line-height: 1.4; margin-bottom: 16px; color: #fff; border: none; padding: 0; margin-top: 0; }
+.cover h1 span { color: #4fc3f7; }
+.cover .subtitle { font-size: 18px; color: #c9a84c; margin-bottom: 40px; }
+.cover .author { font-size: 15px; color: rgba(255,255,255,0.85); }
+.cover .company { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 8px; }
+.cover-line { width: 60px; height: 3px; background: #4fc3f7; margin: 24px auto; }
+
+/* 見出し */
+h1 { font-size: 28px; font-weight: 800; color: #1a365d; margin: 48px 0 20px; }
+h2 { font-size: 21px; font-weight: 700; color: #1a365d; border-left: 4px solid #4fc3f7; padding-left: 14px; margin: 40px 0 16px; }
+h3 { font-size: 17px; font-weight: 700; color: #1a365d; border-left: 4px solid #7ecbf5; padding-left: 12px; margin: 28px 0 12px; }
+hr { border: none; border-top: 1px solid #d0d8e4; margin: 32px 0; }
+
+p { margin-bottom: 14px; color: #2c3e50; }
+strong { font-weight: 700; color: #1a365d; }
+ul, ol { margin: 12px 0 16px 24px; }
+li { margin-bottom: 6px; color: #2c3e50; }
+
+/* 章カード */
+.chapter-card { background: #f7fafd; border: 1px solid #c8d6e5; border-radius: 12px; padding: 28px; margin: 24px 0; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.chapter-label { display: inline-block; background: #4fc3f7; color: #fff; font-weight: 700; font-size: 13px; padding: 4px 16px; border-radius: 4px; margin-bottom: 14px; }
+
+/* 記入欄 */
+.input-box { border: 2px dashed #a0b4cc; border-radius: 8px; padding: 20px 24px; margin: 16px 0 24px; background: #eef3f9; font-size: 14px; line-height: 2.1; white-space: pre-line; color: #2c3e50; }
+
+/* ゴールド背景（サンプル） */
+.sample-box { background: #fdf8ee; border-left: 4px solid #c9a84c; border-radius: 0 8px 8px 0; padding: 20px 24px; margin: 16px 0 24px; }
+.sample-box p { color: #4a3b1f; }
+.sample-box h3 { color: #7a5c1e; }
+
+/* テーブル */
+table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+th { background: #1a365d; color: #fff; padding: 10px 14px; text-align: left; font-weight: 700; }
+td { padding: 10px 14px; border-bottom: 1px solid #d0d8e4; color: #2c3e50; }
+tr:nth-child(even) td { background: #f0f4f9; }
+
+/* タイプ比較表 */
+.type-compare { overflow-x: auto; }
+.type-compare table th { background: #1a365d; text-align: center; }
+.type-compare table td { text-align: center; }
+
+/* チェックリスト */
+.checklist { list-style: none; margin: 16px 0; padding: 0; }
+.checklist li { padding: 10px 0 10px 36px; position: relative; border-bottom: 1px solid #d0d8e4; font-size: 14px; color: #2c3e50; }
+.checklist li::before { content: ''; position: absolute; left: 0; top: 12px; width: 20px; height: 20px; border: 2px solid #4fc3f7; border-radius: 4px; background: #fff; }
+
+/* ポイントカード */
+.point-card { background: #eef3f9; border-radius: 10px; padding: 20px 24px; margin: 16px 0; border-left: 4px solid #c9a84c; }
+.point-num { display: inline-block; background: #c9a84c; color: #fff; font-weight: 800; font-size: 12px; padding: 2px 10px; border-radius: 4px; margin-bottom: 8px; }
+.point-card h3 { color: #7a5c1e; border-left: 4px solid #c9a84c; }
+.point-card p { color: #4a3b1f; }
+
+/* 事例カード */
+.case-card { background: #fff; border: 1px solid #c8d6e5; border-radius: 10px; padding: 24px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.case-label { display: inline-block; background: #1a365d; color: #4fc3f7; font-weight: 700; font-size: 13px; padding: 4px 14px; border-radius: 4px; margin-bottom: 12px; }
+
+/* フッター */
+.page-footer { text-align: center; font-size: 12px; color: #8899aa; border-top: 1px solid #d0d8e4; padding-top: 20px; margin-top: 60px; }
+
+/* スマホ対応 */
+@media (max-width: 600px) {
+  .container { padding: 24px 16px; }
+  .chapter-card { padding: 18px 14px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 15px; }
+  .cover h1 { font-size: 26px; }
+  .cover .subtitle { font-size: 15px; }
+  table { font-size: 13px; }
+  td, th { padding: 8px 10px; }
+}
+
+/* 印刷 */
+@media print {
+  body { font-size: 12px; background: #fff; }
+  .container { background: #fff; padding: 20px; }
+  .cover { page-break-after: always; min-height: auto; padding: 200px 40px; }
+  h2, h3 { page-break-after: avoid; }
+  .chapter-card, .input-box, .sample-box, table, .case-card { page-break-inside: avoid; }
+  .page-footer { position: fixed; bottom: 0; left: 0; right: 0; }
+  @page { margin: 15mm 12mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <div class="cover-label">特典4</div>
+  <h1>JV提案書テンプレート<br><span>（池田式）</span></h1>
+  <div class="cover-line"></div>
+  <div class="subtitle">パートナーを動かす提案書の設計図</div>
+  <div class="author">著者：池田宜史</div>
+  <div class="company">合同会社アドマーケティング</div>
+</div>
+
+<!-- 本文 -->
+<div class="container">
+
+  <h2>はじめに：JV提案書とは何か、なぜ必要か</h2>
+
+  <p>JV（ジョイントベンチャー）とは、2つ以上のビジネスが協力して事業を行う仕組みのことです。「共同事業」「業務提携」と言い換えることもできます。</p>
+
+  <p>JV提案書とは、あなたがパートナーにJVを持ちかけるときに使う「提案の設計図」です。口頭だけで話すより、文書にまとめることで以下の効果が生まれます。</p>
+
+  <ul>
+    <li>相手が持ち帰って検討できる</li>
+    <li>提案内容の数字やメリットが明確に伝わる</li>
+    <li>提案者としての信頼性と本気度が伝わる</li>
+    <li>相手の社内稟議や意思決定を支援できる</li>
+  </ul>
+
+  <p>私はこれまで複数業種でJVを組み、その全てで「売上ブースター」としてのMNPが機能することを実証してきました。</p>
+
+  <ul>
+    <li>バイナリーオプション関連コンサル：単価30万円 → 44万円へ（成約率維持）</li>
+    <li>ブックメーカーBE：単価45万円で成約率を大幅向上</li>
+    <li>古物商コンサル：単価33万円 → 66万円へ（売上2倍）</li>
+  </ul>
+
+  <p>これらのJVが成功した理由のひとつは、最初の提案を丁寧に設計したことです。このテンプレートを使って、あなたも同じ結果を目指してください。</p>
+
+  <hr>
+
+  <h2>JV提案書の基本構成（8章）</h2>
+
+  <!-- 第1章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第1章</span>
+    <h3>自己紹介と実績</h3>
+
+    <p>JV提案書の最初のページでは、あなたが「誰であるか」と「なぜ信頼できるか」を示します。</p>
+
+    <p>ポイントは2つです。第1に、肩書ではなく数字で自分を紹介すること。第2に、相手のビジネスと関連する実績を先に出すことです。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【提案者名】
+　氏名：
+　所属・肩書：
+
+【実績の数字（最も印象的なもの3つ）】
+　1. （例：MNPコンサル指導実績 500名以上）
+　2. （例：月収30万〜200万円達成者 100名以上）
+　3. （例：JV実績：古物商コンサル単価 33万→66万円）
+
+【今回の提案に特に関連する実績】
+　（例：相手がコンサルタントの場合 → 「コンサル×MNPで単価1.5倍〜2倍の実績を複数持っています」）
+
+【この提案をする理由（1〜2文で）】
+　（例：「○○さんのビジネスに、即金エンジンを組み込むことで、単価と成約率を同時に引き上げられると確信したため、提案させていただきます」）</div>
+  </div>
+
+  <hr>
+
+  <!-- 第2章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第2章</span>
+    <h3>相手のビジネスへの理解</h3>
+
+    <p>この章は、相手に「自分のことをよく調べてくれている」と感じさせるための章です。</p>
+
+    <p>調べもせずに提案しても、相手は動きません。相手のビジネスモデル、顧客層、課題を事前にリサーチした上で記入してください。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【相手のビジネスの概要】
+　ビジネス名/サービス名：
+　主な顧客層：
+　現在の単価：
+　販売チャネル（SNS、セミナー、紹介など）：
+
+【相手のビジネスの強み（調べた上で記入）】
+　1.
+　2.
+　3.
+
+【相手のビジネスが現在抱えている課題（推測で記入し、面談で確認する）】
+　例：「顧客獲得コストが上がっている」
+　例：「単価を上げると成約率が下がる」
+　例：「顧客が購入後に即効果を感じられるコンテンツが不足している」
+
+　→ あなたが感じる課題：</div>
+  </div>
+
+  <hr>
+
+  <!-- 第3章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第3章</span>
+    <h3>市場の課題提示</h3>
+
+    <p>ここでは「なぜ今このJVが必要なのか」という文脈を提示します。個人の問題ではなく、市場全体の変化として示すことで、提案の説得力が増します。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【市場の現状】
+　（例：コンサル・教育市場では、「払っても成果が出るかわからない」という不安が購買の最大の壁になっています。
+　広告費の高騰により、1件の成約コストが年々上昇しています。
+　顧客の「即効性」への期待はこれまで以上に高まっています）
+
+→ あなたの言葉で書いてください：
+
+【顧客が抱える「最大の反論」】
+　（例：「値段が高い」「お金がない」「今は時期が悪い」）
+
+→ 相手の顧客に多い反論：
+
+【このJVがその反論を解消する理由】
+　（例：「MNPを組み込むことで、初月にキャッシュが手元に戻る体験を提供できます。
+　『お金がない』という反論を、受講開始前に解消できます」）
+
+→ 記入：</div>
+  </div>
+
+  <hr>
+
+  <!-- 第4章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第4章</span>
+    <h3>解決策の提示（MNP×価値の掛け算）</h3>
+
+    <p>ここがJV提案書の核心です。MNPというツールが、相手のビジネスにどう組み込まれるかを、具体的に示します。</p>
+
+    <p>「価値の掛け算」とは、相手のビジネスの強みにMNPの即金性を掛け合わせることで、顧客が得られる価値を数倍に引き上げることです。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【提案のコアメッセージ（1〜2文）】
+　（例：「あなたのコンサルプログラムにMNPモジュールを追加することで、受講生が初月に受講費を回収できる体験を提供します。これにより単価と成約率を同時に引き上げます」）
+
+→ あなたの提案のコアメッセージ：
+
+【MNPで提供できる価値（具体的に）】
+　顧客が得られる即金収益の目安：      万円〜      万円（      日以内）
+　顧客が受け取るまでの期間：      日〜      日
+　個人の場合：年間160万円の収益モデル
+　法人の場合：年間336万〜440万円の収益モデル
+
+【価値の掛け算の設計（図解）】
+　相手のビジネスが提供するもの：
+　　例）コンサルノウハウ、顧客リスト、SNSフォロワー
+　MNPが付加するもの：
+　　例）初月からの即金収益、受講費回収体験、法人収益の設計
+　合わさって生まれる価値：
+　　例）「実質タダ以下で受講できるコンサル」</div>
+  </div>
+
+  <hr>
+
+  <!-- 第5章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第5章</span>
+    <h3>具体的な提案内容（掛け合わせの設計）</h3>
+
+    <p>第4章で示した方向性を、実際にどう動かすかの具体的なプランにします。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【提案するJVの形式（下記から選択または組み合わせ）】
+　□ タイプA：紹介型（相手が顧客を紹介→成約報酬を支払う）
+　□ タイプB：共同販売型（既存講座にMNPモジュールを追加）
+　□ タイプC：法人JV型（法人でのMNP活用を共同実施）
+
+【実行フローの設計（フェーズ別）】
+　フェーズ1（開始〜30日）：
+　　例）MNPの基礎習得、初回案件の実施、受講費回収体験の提供
+　　→ あなたの記入：
+
+　フェーズ2（31日〜90日）：
+　　例）回線数を増やし、月収安定化、成功事例の収集
+　　→ あなたの記入：
+
+　フェーズ3（91日〜）：
+　　例）法人化の検討、JVの横展開、成功事例を使ったセールス強化
+　　→ あなたの記入：
+
+【役割分担】
+　あなたが提供するもの：
+　　例）MNPノウハウ、手配師ネットワークの紹介、実践サポート
+　相手が提供するもの：
+　　例）顧客リスト、既存プログラムのプラットフォーム、受講生との信頼関係</div>
+  </div>
+
+  <hr>
+
+  <!-- 第6章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第6章</span>
+    <h3>期待される成果（数字で）</h3>
+
+    <p>JV提案で最も重要なのは「数字」です。感覚的な表現ではなく、具体的な金額と期間を示してください。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【成果シミュレーション】
+
+　現在の状況：
+　　単価：         円
+　　月間成約件数：         件
+　　月間売上：         円
+
+　JV後の想定：
+　　新単価：         円（MNP付加価値 +         円）
+　　想定成約率：現在と同等または上昇（根拠：「お金がない」という反論の解消）
+　　月間売上：         円
+　　月間増収額：         円
+
+　年間での変化：
+　　現在の年間売上：         円
+　　JV後の年間売上：         円
+　　年間増収額：         円
+
+【参考：池田の実績数値】
+　古物商コンサル：33万円 → 66万円（成約率維持で売上2倍）
+　バイナリー関連：30万円 → 44万円（成約率維持）
+　ブックメーカーBE：45万円で成約率が大幅向上</div>
+  </div>
+
+  <hr>
+
+  <!-- 第7章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第7章</span>
+    <h3>リスクと対策</h3>
+
+    <p>相手が不安に感じる点を、提案書の中で先に潰しておきます。「リスクを隠している」と思われるより、「リスクも含めて説明できる人」のほうが信頼されます。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【リスク1：法的なリスク】
+　懸念：「MNP転売は法律的に問題があるのでは？」
+　対策：「MNP制度は総務省が定めた正式な制度です。合法の範囲内での実践方法のみを提供しています。12年間、合法スキームのみを実践し、500名以上を指導してきた実績があります」
+
+【リスク2：規制強化のリスク】
+　懸念：「規制が強化されたらビジネスが続けられなくなるのでは？」
+　対策：「規制強化によって一般プレイヤーが撤退するため、情報を持つコンサルの価値は逆に高まります。2026年夏に総務省の規制方針が確定予定ですが、合法スキームが禁止される内容ではありません。最新情報は常にアップデートして提供します」
+
+【リスク3：成果が出ないリスク】
+　懸念：「本当に単価が上がるのか、成約率は維持できるのか？」
+　対策：「JV実績を3業種で持っています（古物商33万→66万、バイナリー30万→44万等）。どのケースも成約率を維持したまま単価が上昇しています。同様の結果を設計する具体的な手順をご提供します」
+
+【その他、相手固有のリスクがあれば追記】
+　→ 記入：</div>
+  </div>
+
+  <hr>
+
+  <!-- 第8章 -->
+  <div class="chapter-card">
+    <span class="chapter-label">第8章</span>
+    <h3>次のステップ（打ち合わせの依頼）</h3>
+
+    <p>提案書の最後は、必ず「次に何をすればよいか」で終わらせます。相手に考える余地を与えすぎると、返事がうやむやになります。</p>
+
+    <p><strong>記入テンプレート</strong></p>
+
+    <div class="input-box">【提案する次のアクション】
+　「まず30分のオンライン打ち合わせをお願いしたいと思います。
+　　この提案書の内容についてご質問があればお答えします。
+　　また、○○さんのビジネスのより詳しい状況を教えていただき、
+　　今のタイミングで最も効果的なJVの形式を一緒に設計したいと思います」
+
+【打ち合わせ希望日（記入して送付）】
+　第1希望：
+　第2希望：
+　第3希望：
+
+【連絡先】
+　メール：
+　LINE ID：
+　その他：
+
+【タイムリミットの設定（任意）】
+　（例：「4月のキャンペーンに合わせて動くため、3月中にご判断いただけると大変助かります」）</div>
+  </div>
+
+  <hr>
+
+  <!-- 3タイプ別テンプレート -->
+  <h2>3タイプ別テンプレート</h2>
+
+  <!-- タイプA -->
+  <div class="chapter-card">
+    <span class="chapter-label">タイプA</span>
+    <h3>紹介型JV（相手リスクゼロ・情報発信者向け）</h3>
+
+    <p><strong>概要</strong></p>
+    <p>相手が自分のフォロワーや顧客リストにMNPコンサルを紹介する。成約が決まった時点で、成約報酬（アフィリエイト手数料）を支払う。相手は商品開発も資金リスクも負わない。最もシンプルで、最も断られにくいJVです。</p>
+
+    <p><strong>こんな相手に向いています</strong></p>
+    <ul>
+      <li>YouTuber、ブロガー、インフルエンサー</li>
+      <li>SNSフォロワーが多いコンサルタント</li>
+      <li>メルマガリストを持っている情報発信者</li>
+    </ul>
+
+    <p><strong>紹介型JVの訴求文テンプレート</strong></p>
+
+    <div class="sample-box">
+      <p>件名：○○さんのフォロワーさんに「MNP即金エンジン」をご紹介させてください</p>
+      <p>○○さん、はじめまして。<br>池田宜史（合同会社アドマーケティング）と申します。</p>
+      <p>MNPコンサルを12年間行い、500名以上の方を指導してきました。<br>今回、○○さんのフォロワーさんへ、私のMNPコンサルをご紹介いただけないかと思いご連絡しました。</p>
+      <p>ご紹介形式ですので、○○さんには一切リスクがありません。<br>成約した場合のみ、成約報酬として売上の○%をお渡しします。</p>
+      <p>○○さんのフォロワーさんは○○という層が多いとお見受けしました。<br>「副業収入を月10万〜30万円作りたい」というニーズと、私のコンサルは非常に相性が良いと感じています。</p>
+      <p>30分だけお時間いただけますでしょうか。</p>
+      <p>池田宜史</p>
+    </div>
+
+    <p><strong>利益配分の目安</strong></p>
+    <ul>
+      <li>成約報酬：売上の20〜30%</li>
+      <li>成約金額：30万〜100万円の場合 → 紹介報酬 6万〜30万円</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <!-- タイプB -->
+  <div class="chapter-card">
+    <span class="chapter-label">タイプB</span>
+    <h3>共同販売型JV（既存講座にMNPモジュール追加）</h3>
+
+    <p><strong>概要</strong></p>
+    <p>相手の既存講座・コンサルプログラムにMNPモジュールを追加する。単価アップ分の利益を双方で分配する。相手は「既存プログラムの価値が上がる」だけなので、反論が少ない。最も単価アップ効果が大きいJVです。</p>
+
+    <p><strong>こんな相手に向いています</strong></p>
+    <ul>
+      <li>スクール・オンライン講座の運営者</li>
+      <li>コーチング・コンサルのプログラム販売者</li>
+      <li>物販、投資系の教育コンテンツ販売者</li>
+    </ul>
+
+    <p><strong>共同販売型の訴求文テンプレート</strong></p>
+
+    <div class="sample-box">
+      <p>件名：○○講座にMNPモジュールを追加して単価を1.5〜2倍にするご提案</p>
+      <p>○○さん</p>
+      <p>池田宜史（合同会社アドマーケティング）と申します。</p>
+      <p>○○さんの講座を拝見しました。<br>単価○万円で、受講生が○○という成果を得られる内容ですね。</p>
+      <p>一点だけ感じたことがあります。<br>「初月から受講費を回収できる体験」があれば、成約率が大きく上がると思います。</p>
+      <p>私のMNPモジュールを第1回講義に追加していただくと、受講開始の30日以内に受講費相当のキャッシュが手元に戻る体験を受講生に提供できます。</p>
+      <p>実際に古物商コンサルの方とJVを組み、この手法で単価を33万円から66万円に引き上げた実績があります。成約率は維持できています。</p>
+      <p>追加するのはMNPの1モジュールだけです。既存の講座内容を変える必要はありません。</p>
+      <p>単価アップ分の利益は、ご提案する配分率でお分けします。<br>詳しくお話しできればと思います。いかがでしょうか。</p>
+      <p>池田宜史</p>
+    </div>
+
+    <p><strong>利益配分の目安</strong></p>
+    <ul>
+      <li>単価アップ分の分配：池田 40% ／ 相手 60%</li>
+      <li>例：単価が30万円から50万円になった場合 → 増収分20万円の内、池田8万円・相手12万円</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <!-- タイプC -->
+  <div class="chapter-card">
+    <span class="chapter-label">タイプC</span>
+    <h3>法人JV型（法人MNPスキーム提案）</h3>
+
+    <p><strong>概要</strong></p>
+    <p>相手が法人オーナーの場合、法人名義でMNPを最大活用する仕組みを共同で構築する。年間336万〜440万円の収益を設計し、相手法人の収益源を増やす。高単価かつ長期的な関係に発展しやすいJVです。</p>
+
+    <p><strong>こんな相手に向いています</strong></p>
+    <ul>
+      <li>法人を持つ士業（税理士、行政書士）</li>
+      <li>不動産・民泊事業者</li>
+      <li>物販の法人オーナー</li>
+    </ul>
+
+    <p><strong>法人JV型の訴求文テンプレート</strong></p>
+
+    <div class="sample-box">
+      <p>件名：法人名義でMNPを活用し年間300〜440万円の収益を追加するご提案</p>
+      <p>○○様</p>
+      <p>池田宜史（合同会社アドマーケティング）と申します。<br>MNPコンサルを12年行い、法人活用での収益設計も多数実績があります。</p>
+      <p>○○様の法人に、年間336〜440万円の即金収益を追加できる可能性があります。</p>
+      <p>MNPを法人名義で活用することで、個人よりも多くの回線を扱え、収益が大幅に拡大します。この設計を一緒に組み立てるJVをご提案したいと思います。</p>
+      <p>法人MNPは適切な手順を踏めば完全に合法です。12年間の実績と、500名以上の指導経験を持つ私が、最新の規制動向も含めてサポートします。</p>
+      <p>法人の事業収益に加え、MNPで年間300万円超の収益を積み上げる設計、ぜひ一度ご説明させてください。</p>
+      <p>池田宜史</p>
+    </div>
+
+    <p><strong>利益配分の目安</strong></p>
+    <ul>
+      <li>コンサルフィーとして設定する場合：月額10万〜30万円のコンサル契約</li>
+      <li>利益シェア型の場合：MNP収益の20〜30%を池田が受け取る形</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <!-- 3タイプ比較表 -->
+  <h2>3タイプ比較表</h2>
+
+  <div class="type-compare">
+    <table>
+      <thead>
+        <tr><th></th><th>タイプA：紹介型</th><th>タイプB：共同販売型</th><th>タイプC：法人JV型</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>相手のリスク</strong></td><td>ゼロ</td><td>低い</td><td>中程度</td></tr>
+        <tr><td><strong>単価アップ効果</strong></td><td>なし（紹介報酬）</td><td>大きい</td><td>大きい</td></tr>
+        <tr><td><strong>向いている相手</strong></td><td>情報発信者</td><td>講座・コンサル運営者</td><td>法人オーナー</td></tr>
+        <tr><td><strong>利益配分</strong></td><td>売上の20〜30%</td><td>増収分を40:60で分配</td><td>月額コンサル or 収益シェア</td></tr>
+        <tr><td><strong>断られにくさ</strong></td><td>最も断られにくい</td><td>断られにくい</td><td>提案力が必要</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr>
+
+  <!-- 記入例 -->
+  <h2>記入例：架空のコンサルタントへの提案書サンプル</h2>
+
+  <p>ここでは「山田太郎さん（ビジネス構築コンサルタント・単価30万円）」へのタイプB提案書のサンプルを示します。実際の提案書作成の参考にしてください。</p>
+
+  <div class="sample-box">
+    <h3 style="border-color:#c9a84c; margin-top:0;">○○ビジネス × MNP即金エンジン JV提案書</h3>
+
+    <p>提案者：池田宜史（合同会社アドマーケティング）<br>提案日：2026年3月31日</p>
+
+    <p><strong>第1章：自己紹介と実績</strong></p>
+    <p>池田宜史と申します。MNPコンサルを12年行い、500名以上を指導してきました。月収30万〜200万円を達成した方が100名以上います。</p>
+    <p>JV実績として、古物商コンサルで単価33万円を66万円へ（売上2倍）、バイナリー関連コンサルで30万円を44万円へ引き上げた実績があります。どちらも成約率を維持したままの結果です。</p>
+    <p>今回、山田さんのビジネス構築コンサルに価値を追加できると確信し、提案させていただきます。</p>
+
+    <p><strong>第2章：山田さんのビジネスへの理解</strong></p>
+    <p>山田さんのコンサルは「会社員が副業で月30万円を作るための設計」に特化しています。単価30万円で、月間3〜5件の成約があります。顧客層は30〜40代の会社員で「今の収入に不安を感じている方」が中心です。</p>
+    <p>課題として感じているのは「単価を上げると申し込みが減るのではないか」という点ではないかと想像します。</p>
+
+    <p><strong>第3章：市場の課題</strong></p>
+    <p>副業系コンサルの最大の反論は「30万円は高い」「今は厳しい」です。この反論は、顧客がお金を払った後の「回収体験」を想像できないために生まれます。</p>
+    <p>逆に言えば、「払ったお金が初月に戻ってくる」という体験を設計できれば、この反論は解消されます。</p>
+
+    <p><strong>第4章：解決策の提示</strong></p>
+    <p>山田さんのコンサル第1回に「MNP即金エンジン」モジュールを追加します。受講開始から30日以内に、MNPで30万〜60万円の利益を出す実践をプログラムに組み込みます。</p>
+    <p>「30万円払ったら、初月に30万円以上が戻ってきた」という体験を受講生に提供します。</p>
+
+    <p><strong>第5章：実行フロー</strong></p>
+    <ul>
+      <li>フェーズ1（0〜30日）：MNP基礎習得、初回案件実施、受講費回収体験</li>
+      <li>フェーズ2（31〜90日）：回線数スケール、月収安定化、体験談の収集</li>
+      <li>フェーズ3（91日〜）：成功事例をセールスレターに組み込み、成約率向上</li>
+    </ul>
+
+    <p><strong>第6章：期待される成果</strong></p>
+
+    <table>
+      <thead><tr><th></th><th>現在</th><th>JV後（想定）</th></tr></thead>
+      <tbody>
+        <tr><td>単価</td><td>30万円</td><td>50万円</td></tr>
+        <tr><td>月間成約件数</td><td>4件</td><td>4件（成約率維持）</td></tr>
+        <tr><td>月間売上</td><td>120万円</td><td>200万円</td></tr>
+        <tr><td>月間増収</td><td>—</td><td>+80万円</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>第7章：リスクと対策</strong></p>
+    <p>MNPは合法スキームのみ。規制強化時も即対応できる体制があります。JV実績3業種で、成約率維持の実績があります。</p>
+
+    <p><strong>第8章：次のステップ</strong></p>
+    <p>来週中に30分のオンラインMTGをお願いできますか。山田さんのコンサルの詳しい状況を教えていただき、最適な組み込み方を一緒に設計したいと思います。</p>
+  </div>
+
+  <hr>
+
+  <!-- JV提案の成功ポイント5つ -->
+  <h2>JV提案の成功ポイント5つ</h2>
+
+  <div class="point-card">
+    <span class="point-num">ポイント1</span>
+    <h3 style="border-color:#c9a84c;">相手のビジネスを先に徹底的に調べる</h3>
+    <p>提案書を送る前に、相手のSNS、LP、セールスレターを必ず読んでください。「調べてきた」という姿勢が伝わると、相手は真剣に読んでくれます。逆に「テンプレートをそのまま送ってきた」と感じると、即ゴミ箱行きです。</p>
+  </div>
+
+  <div class="point-card">
+    <span class="point-num">ポイント2</span>
+    <h3 style="border-color:#c9a84c;">相手の利益を先に計算する</h3>
+    <p>提案書の中で「相手が得られる金額」を先に示してください。「池田の利益」ではなく「相手の利益」を前面に出します。人は、自分にとって得かどうかで判断します。</p>
+  </div>
+
+  <div class="point-card">
+    <span class="point-num">ポイント3</span>
+    <h3 style="border-color:#c9a84c;">具体的な数字を必ず使う</h3>
+    <p>「単価が上がります」では動きません。「33万円が66万円になった実績があります」で動きます。数字は信頼の証拠です。</p>
+  </div>
+
+  <div class="point-card">
+    <span class="point-num">ポイント4</span>
+    <h3 style="border-color:#c9a84c;">相手のリスクをゼロに近づける</h3>
+    <p>タイプAの紹介型はリスクがゼロです。タイプBの共同販売型も「既存プログラムを変えるだけ」でリスクが低い。相手が感じるリスクが小さいほど、YESが出やすくなります。</p>
+  </div>
+
+  <div class="point-card">
+    <span class="point-num">ポイント5</span>
+    <h3 style="border-color:#c9a84c;">「次に何をすればよいか」を明確にする</h3>
+    <p>提案書の最後に「打ち合わせの申し込み方法」を必ず書いてください。「ご検討ください」で終わると、9割の相手がそのままになります。「○月○日か○日にお時間はありますか？」という具体的な質問で終わらせてください。</p>
+  </div>
+
+  <hr>
+
+  <!-- 池田のJV実績3事例の解説 -->
+  <h2>池田のJV実績3事例の解説</h2>
+
+  <div class="case-card">
+    <span class="case-label">事例1</span>
+    <h3>バイナリーオプション関連コンサル（30万→44万）</h3>
+
+    <p><strong>背景</strong></p>
+    <p>バイナリーオプションの投資系コンサルは、顧客の「失敗への恐怖」が大きく、単価を上げると成約率が下がる傾向がありました。</p>
+
+    <p><strong>取り組んだこと</strong></p>
+    <p>コンサルプログラムの冒頭に「MNPで初月の受講費を回収する」モジュールを追加しました。顧客は「万が一うまくいかなくても、MNPで出したお金は戻ってくる」という安心感を持てるようになりました。</p>
+
+    <p><strong>結果</strong></p>
+    <p>単価が30万円から44万円に上昇しました。成約率は変わりませんでした。1件あたりの利益が14万円増えたことで、同じ商談数でも月間売上が大幅に向上しました。これが「売上ブースター」として機能した典型例です。</p>
+  </div>
+
+  <div class="case-card">
+    <span class="case-label">事例2</span>
+    <h3>ブックメーカーBE（45万円での成約率向上）</h3>
+
+    <p><strong>背景</strong></p>
+    <p>ブックメーカー（スポーツベット）系の教育コンテンツは、45万円という高単価で成約率が伸び悩んでいました。</p>
+
+    <p><strong>取り組んだこと</strong></p>
+    <p>MNPを「受講費回収ツール」として訴求に組み込みました。「45万円払っても、MNPで初月45万円以上が戻ってくる」という設計を提案書に明示しました。</p>
+
+    <p><strong>結果</strong></p>
+    <p>成約率が大幅に向上しました。「高い」という反論の前に「初月に回収できる」という訴求が機能したためです。</p>
+  </div>
+
+  <div class="case-card">
+    <span class="case-label">事例3</span>
+    <h3>古物商コンサル（33万→66万円）</h3>
+
+    <p><strong>背景</strong></p>
+    <p>古物商許可取得の支援コンサルは、差別化が難しく単価を上げにくい商品でした。許可取得後の「稼ぐ方法」まで提供できなかったことが課題でした。</p>
+
+    <p><strong>取り組んだこと</strong></p>
+    <p>「古物商許可取得」と「MNP転売の実践」をセットにしたプログラムに再設計しました。「許可を取ってすぐにMNPを実践し、初月33万円以上を回収できる」という流れを作りました。</p>
+
+    <p><strong>結果</strong></p>
+    <p>単価が33万円から66万円へ2倍になりました。「古物商許可があれば端末売買がよりスムーズになる」という相乗効果が、顧客にとっての明確な付加価値になりました。成約率は維持できています。</p>
+  </div>
+
+  <hr>
+
+  <!-- チェックリスト -->
+  <h2>このテンプレートを使い終えたら</h2>
+
+  <p>作成した提案書を送る前に、以下のチェックリストで確認してください。</p>
+
+  <ul class="checklist">
+    <li>相手のビジネスを調べた上で、固有の情報を記入しているか</li>
+    <li>相手が得られる金額（数字）を具体的に記載しているか</li>
+    <li>池田の実績数字（33万→66万等）を引用しているか</li>
+    <li>リスクに対する対策を先に書いているか</li>
+    <li>次のアクション（打ち合わせ日程）を具体的に書いているか</li>
+    <li>相手の名前・ビジネス名が正しく記入されているか</li>
+  </ul>
+
+  <p>提案書の完成度に不安がある方は、面談でフィードバックします。送付前にご相談ください。</p>
+
+  <hr>
+
+  <p style="text-align:right; font-style:italic; color:#556677;">池田宜史 / 合同会社アドマーケティング<br>MNPコンサル歴12年・指導実績500名以上・JV実績3業種</p>
+
+  <div class="page-footer">合同会社アドマーケティング ｜ 無断転載・複製を禁じます</div>
+
+</div>
+</body>
+</html>

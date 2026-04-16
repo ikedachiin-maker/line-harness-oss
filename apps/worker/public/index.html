@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LINE Harness</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #06C755; color: #fff; text-align: center; }
+.loading { font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="loading">読み込み中...</div>
+<script>
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const liffId = params.get('liffId') || '2009659984-LVGK2Qq0';
+  try {
+    await liff.init({ liffId });
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+    const idToken = liff.getIDToken();
+    const profile = await liff.getProfile();
+    const friendFlag = await liff.getFriendship();
+    const ref = params.get('ref') || '';
+    const res = await fetch('/api/liff/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken, ref, friendFlag: friendFlag.friendFlag })
+    });
+    const data = await res.json();
+    if (data.success && data.data && data.data.redirect) {
+      location.href = data.data.redirect;
+    } else {
+      document.querySelector('.loading').textContent = '登録完了！このページを閉じてください。';
+    }
+  } catch (e) {
+    document.querySelector('.loading').textContent = '登録完了！このページを閉じてください。';
+  }
+})();
+</script>
+</body>
+</html>

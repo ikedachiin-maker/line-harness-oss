@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MNP×コンテンツ販売 単価アップ設計シート</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 15px; line-height: 1.9; color: #2c3e50; background: #f5f7fa; }
+.container { max-width: 800px; margin: 0 auto; padding: 40px 32px; background: #fff; }
+
+/* 表紙（ダーク背景・白文字はそのまま維持） */
+.cover { background: linear-gradient(135deg, #0f1b2d 0%, #1a2d4a 100%); color: #fff; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 60px 40px; }
+.cover-label { font-size: 14px; letter-spacing: 4px; color: #4fc3f7; text-transform: uppercase; margin-bottom: 20px; }
+.cover h1 { font-size: 36px; font-weight: 800; line-height: 1.4; margin-bottom: 16px; color: #fff; border: none; padding: 0; margin-top: 0; }
+.cover h1 span { color: #4fc3f7; }
+.cover .subtitle { font-size: 18px; color: #c9a84c; margin-bottom: 40px; }
+.cover .author { font-size: 15px; color: rgba(255,255,255,0.85); }
+.cover .company { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 8px; }
+.cover-line { width: 60px; height: 3px; background: #4fc3f7; margin: 24px auto; }
+
+/* 見出し */
+h1 { font-size: 28px; font-weight: 800; color: #1a365d; margin: 48px 0 20px; }
+h2 { font-size: 21px; font-weight: 700; color: #1a365d; border-left: 4px solid #4fc3f7; padding-left: 14px; margin: 40px 0 16px; }
+h3 { font-size: 17px; font-weight: 700; color: #1a365d; border-left: 4px solid #7ecbf5; padding-left: 12px; margin: 28px 0 12px; }
+hr { border: none; border-top: 1px solid #d0d8e4; margin: 32px 0; }
+
+p { margin-bottom: 14px; color: #2c3e50; }
+strong { font-weight: 700; color: #1a365d; }
+ul, ol { margin: 12px 0 16px 24px; }
+li { margin-bottom: 6px; color: #2c3e50; }
+
+/* STEP 丸数字 */
+.step-badge { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #4fc3f7; color: #fff; font-weight: 800; font-size: 16px; margin-right: 10px; flex-shrink: 0; }
+.step-heading { display: flex; align-items: center; font-size: 21px; font-weight: 700; color: #1a365d; border-left: 4px solid #4fc3f7; padding-left: 14px; margin: 40px 0 16px; }
+
+/* 記入欄 */
+.input-box { border: 2px dashed #a0b4cc; border-radius: 8px; padding: 20px 24px; margin: 16px 0 24px; background: #eef3f9; font-size: 14px; line-height: 2; color: #2c3e50; }
+.input-box p { margin-bottom: 4px; color: #2c3e50; }
+
+/* 記入例（ゴールド背景） */
+.example-box { background: #fdf8ee; border-left: 4px solid #c9a84c; border-radius: 0 8px 8px 0; padding: 20px 24px; margin: 16px 0 24px; }
+.example-box h3 { border-left: 4px solid #c9a84c; color: #7a5c1e; }
+.example-box p, .example-box li { color: #4a3b1f; }
+
+/* テーブル */
+table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+th { background: #1a365d; color: #fff; padding: 10px 14px; text-align: left; font-weight: 700; }
+td { padding: 10px 14px; border-bottom: 1px solid #d0d8e4; color: #2c3e50; }
+tr:nth-child(even) td { background: #f0f4f9; }
+
+/* パターンカード */
+.pattern-card { background: #fff; border: 1px solid #c8d6e5; border-radius: 10px; padding: 24px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+.pattern-label { display: inline-block; background: #4fc3f7; color: #fff; font-weight: 700; font-size: 13px; padding: 4px 14px; border-radius: 4px; margin-bottom: 12px; }
+
+/* フッター */
+.page-footer { text-align: center; font-size: 12px; color: #8899aa; border-top: 1px solid #d0d8e4; padding-top: 20px; margin-top: 60px; }
+
+/* スマホ対応 */
+@media (max-width: 600px) {
+  .container { padding: 24px 16px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 15px; }
+  .step-heading { font-size: 18px; }
+  .cover h1 { font-size: 26px; }
+  .cover .subtitle { font-size: 15px; }
+  table { font-size: 13px; }
+  td, th { padding: 8px 10px; }
+}
+
+/* 印刷 */
+@media print {
+  body { font-size: 12px; background: #fff; }
+  .container { background: #fff; padding: 20px; }
+  .cover { page-break-after: always; min-height: auto; padding: 200px 40px; }
+  h2, h3 { page-break-after: avoid; }
+  .input-box, .example-box, .pattern-card, table { page-break-inside: avoid; }
+  .page-footer { position: fixed; bottom: 0; left: 0; right: 0; }
+  @page { margin: 15mm 12mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="cover">
+  <div class="cover-label">特典1</div>
+  <h1>MNP×コンテンツ販売<br><span>単価アップ設計シート</span></h1>
+  <div class="cover-line"></div>
+  <div class="subtitle">あなたのビジネスに「即金エンジン」を組み込む</div>
+  <div class="author">著者：池田宜史</div>
+  <div class="company">合同会社アドマーケティング</div>
+</div>
+
+<!-- 本文 -->
+<div class="container">
+
+  <h2>はじめに：このシートの使い方</h2>
+
+  <p>このシートは、あなたが今販売している商品やサービスに「MNP（Mobile Number Portability）」を掛け合わせることで、単価をどれだけ引き上げられるかを、具体的な数字で設計するためのワークシートです。</p>
+
+  <p>私はこれまで12年間、MNPコンサルに携わり、500名以上の方を指導してきました。その中で気づいたことがあります。</p>
+
+  <p>MNPとは単なる「乗り換えで稼ぐ方法」ではありません。あなたのビジネスに組み込んだとき、売上を倍にも2倍以上にも引き上げる「即金エンジン」として機能します。</p>
+
+  <p>「即金エンジン」とは何か、端的に言うと「商品を買う前から、あるいは買ったその月から、顧客がキャッシュを手にできる仕組み」のことです。この即金性を付加価値として自分の商品に組み込むことで、単価と成約率を同時に引き上げることができます。</p>
+
+  <p>実際に私がJVパートナーと取り組んだ事例では、古物商コンサルの単価が33万円から66万円へ2倍になり、成約率も維持できました。これはMNPが「値上げの言い訳」ではなく、顧客にとっての「明確なメリット」として機能したからです。</p>
+
+  <p>このシートは全4ステップで構成されています。じっくり時間をとって記入してください。1時間程度で完成します。</p>
+
+  <hr>
+
+  <!-- STEP 1 -->
+  <div class="step-heading"><span class="step-badge">1</span> STEP 1：現在の商品分析</div>
+
+  <p>まず、あなたが今販売している商品やサービスの現状を整理します。正確に記入することで、後のステップでの計算精度が高まります。</p>
+
+  <h3>記入欄</h3>
+
+  <p><strong>商品・サービス名</strong></p>
+  <div class="input-box">
+    （例：物販コンサルプログラム、スクール講座、士業の独立支援コンサル　など）<br><br>
+    → あなたの商品名：
+  </div>
+
+  <p><strong>現在の販売価格（税込）</strong></p>
+  <div class="input-box">
+    （例：30万円、50万円、10万円／月　など）<br><br>
+    → 現在の価格：            円
+  </div>
+
+  <p><strong>現在の成約率</strong></p>
+  <div class="input-box">
+    （例：商談10件中3件が成約 → 成約率30%）<br><br>
+    → 月間商談数：         件<br>
+    → 月間成約数：         件<br>
+    → 現在の成約率：            %
+  </div>
+
+  <p><strong>月間販売数（成約件数）</strong></p>
+  <div class="input-box">
+    → 月間成約件数：         件
+  </div>
+
+  <p><strong>主なターゲット</strong></p>
+  <div class="input-box">
+    （例：副業を探している30代会社員、独立を目指す40代士業、物販を始めたい主婦　など）<br><br>
+    → ターゲット像：
+  </div>
+
+  <p><strong>現在の月間売上（計算式：価格 × 月間成約件数）</strong></p>
+  <div class="input-box">
+    → 現在の月間売上：            円
+  </div>
+
+  <hr>
+
+  <!-- STEP 2 -->
+  <div class="step-heading"><span class="step-badge">2</span> STEP 2：MNP掛け合わせの設計</div>
+
+  <p>次に、あなたの商品にどのパターンでMNPを組み込むかを選びます。</p>
+
+  <p>「即金エンジン」には主に3つの組み込みパターンがあります。あなたのターゲットや商品特性に合わせて1つを選んでください。</p>
+
+  <hr>
+
+  <!-- パターンA -->
+  <div class="pattern-card">
+    <span class="pattern-label">パターンA</span>
+    <h3>受講費回収型</h3>
+
+    <p><strong>コンセプト</strong><br>「MNPで初月から受講費を回収できます」という訴求です。</p>
+
+    <p><strong>最も向いている商品・サービス</strong></p>
+    <ul>
+      <li>オンライン講座、スクール</li>
+      <li>コンサルティングプログラム（30万〜100万円の価格帯）</li>
+      <li>物販・ビジネス系の教育コンテンツ</li>
+    </ul>
+
+    <p><strong>訴求の仕組み</strong><br>受講費を払った直後の30日以内に、MNPで同額以上のキャッシュを手にした体験を提供します。たとえば受講費30万円のプログラムであれば、初月のMNPサイクル（1回転）で30万〜92万円の利益が出る設計です。</p>
+
+    <p>顧客心理として「払ったお金がすぐ戻ってくる」という体験は、単なる値上げとは次元が異なる購買動機を生み出します。</p>
+
+    <p><strong>選択したら記入してください</strong></p>
+    <div class="input-box">
+      □ パターンAを選択<br><br>
+      あなたの商品への組み込み方：<br>
+      （例：プログラム初月にMNP実践モジュールを追加し、30日以内に受講費回収を体験してもらう）<br><br>
+      → 組み込み方：<br><br>
+      訴求文（自分の言葉で書いてみてください）：<br>
+      （例：「このプログラムを受けると、初月のMNP実践で受講費○万円を回収できます」）<br><br>
+      → 訴求文：
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- パターンB -->
+  <div class="pattern-card">
+    <span class="pattern-label">パターンB</span>
+    <h3>追加収入訴求型</h3>
+
+    <p><strong>コンセプト</strong><br>「MNPで月○万円の副収入も得られます」という訴求です。</p>
+
+    <p><strong>最も向いている商品・サービス</strong></p>
+    <ul>
+      <li>発信ビジネス、SNS運用コンサル</li>
+      <li>コーチング、マインドセット系プログラム</li>
+      <li>起業・副業系の入門コンテンツ</li>
+    </ul>
+
+    <p><strong>訴求の仕組み</strong><br>本業の成果が出るまでの助走期間、MNPで安定した即金収入を確保できることを訴求します。「本業で稼げるようになるまでの間も、毎月○万円の収入がある」という安心感が、決断の後押しになります。</p>
+
+    <p>個人で取り組んだ場合、1サイクル30日で最大92万円（年間160万円）の利益が出る設計があります。この数字をそのまま訴求に使えます。</p>
+
+    <p><strong>選択したら記入してください</strong></p>
+    <div class="input-box">
+      □ パターンBを選択<br><br>
+      あなたの商品への組み込み方：<br>
+      （例：コーチングプログラムに「MNP月収設計」のモジュールを追加する）<br><br>
+      → 組み込み方：<br><br>
+      訴求文：<br>
+      （例：「このコーチングを受けると、収入が安定するまでの間、MNPで月10〜30万の副収入を確保できます」）<br><br>
+      → 訴求文：
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- パターンC -->
+  <div class="pattern-card">
+    <span class="pattern-label">パターンC</span>
+    <h3>投資回収加速型</h3>
+
+    <p><strong>コンセプト</strong><br>「投資額を60日で回収できます」という訴求です。</p>
+
+    <p><strong>最も向いている商品・サービス</strong></p>
+    <ul>
+      <li>法人向けコンサルティング</li>
+      <li>士業（独立支援、法人設立支援）</li>
+      <li>不動産・民泊の開業支援</li>
+      <li>高単価のBtoBサービス（50万円以上）</li>
+    </ul>
+
+    <p><strong>訴求の仕組み</strong><br>MNPを法人名義で活用した場合、年間336万〜440万円の収益が出ます。顧客が投資した金額を60〜90日以内にMNPで回収できることを数字で示します。法人オーナーや士業の方に特に刺さるパターンです。</p>
+
+    <p><strong>選択したら記入してください</strong></p>
+    <div class="input-box">
+      □ パターンCを選択<br><br>
+      あなたの商品への組み込み方：<br>
+      （例：法人設立支援コンサルに「法人MNP年収設計」を追加し、初年度から年間300万超の副収益を構築する）<br><br>
+      → 組み込み方：<br><br>
+      訴求文：<br>
+      （例：「コンサル費50万円の投資は、法人MNPの活用で60日以内に全額回収できます」）<br><br>
+      → 訴求文：
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- STEP 3 -->
+  <div class="step-heading"><span class="step-badge">3</span> STEP 3：単価アップの試算</div>
+
+  <p>選択したパターンをもとに、新しい価格設定と売上の変化を計算します。</p>
+
+  <h3>単価アップの計算式</h3>
+
+  <div class="input-box" style="background:#e8f0f9; border-color:#4fc3f7; border-style:solid;">
+    新価格 ＝ 現在の価格 ＋ MNP付加価値（見込み利益の一部）
+  </div>
+
+  <p>MNPの付加価値として加算できる金額の目安は以下の通りです。</p>
+
+  <table>
+    <thead>
+      <tr><th>パターン</th><th>付加価値の目安</th><th>単価アップ幅の目安</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>A：受講費回収型</td><td>受講費相当（30万〜90万円）</td><td>+10万〜+30万円</td></tr>
+      <tr><td>B：追加収入訴求型</td><td>月額10〜30万円の収入源</td><td>+5万〜+20万円</td></tr>
+      <tr><td>C：投資回収加速型</td><td>年間336万〜440万円の収益</td><td>+30万〜+100万円</td></tr>
+    </tbody>
+  </table>
+
+  <h3>記入欄</h3>
+
+  <div class="input-box">
+    現在の価格：               円<br><br>
+    MNP付加価値として追加する金額：               円<br>
+    （顧客が得られる見込み利益の20〜30%を目安に設定してください）<br><br>
+    新価格（掛け合わせ後）：               円
+  </div>
+
+  <h3>月間売上の変化シミュレーション</h3>
+
+  <div class="input-box">
+    【現在の売上】<br>
+    価格（    円） × 月間成約件数（    件） ＝ 月間売上（          円）<br><br>
+    【掛け合わせ後の売上】<br>
+    新価格（    円） × 月間成約件数（    件） ＝ 月間売上（          円）<br>
+    ※成約率が変わらない場合のシミュレーション<br><br>
+    【月間増収額】<br>
+    掛け合わせ後 −  現在 ＝              円 の増収
+  </div>
+
+  <hr>
+
+  <!-- STEP 4 -->
+  <div class="step-heading"><span class="step-badge">4</span> STEP 4：成約率の変化予測</div>
+
+  <p>単価が上がると「成約率が下がるのでは」と心配になる方が多いです。しかし、「即金エンジン」を組み込んだ場合は逆の結果になることが多くあります。</p>
+
+  <h3>「即金エンジン」追加による成約率改善の根拠</h3>
+
+  <p>成約率が上がる理由は、主に2つあります。</p>
+
+  <p><strong>理由1：反論を事前に解消できる</strong></p>
+
+  <p>商談の場でもっとも多い反論は「値段が高い」と「お金がない」の2つです。</p>
+
+  <p>パターンAやCを使うと、「この金額は、MNPで○日以内に全額戻ってきます」と伝えることができます。これにより「高い」という反論が「投資」に転換します。「お金がない」という反論も、「MNPで先に原資を作る方法があります」と返せるため、解消できます。</p>
+
+  <p><strong>理由2：顧客の期待値が上がる</strong></p>
+
+  <p>MNPという具体的な即金ツールがセットになることで、受講後のイメージが鮮明になります。人は「成功のイメージが見えるもの」に対して行動しやすくなります。この心理的効果が成約率を引き上げます。</p>
+
+  <h3>池田の実績事例</h3>
+
+  <p>バイナリーオプション系のコンサルでJVを組んだ際、単価を30万円から44万円へ引き上げました。通常であれば値上げ後に成約率が下がることが予測されますが、この事例では成約率を維持したまま売上が増加しました。</p>
+
+  <p>訴求文に「MNPで初月から受講費を回収できる」という要素を加えたことで、顧客の「払えるか」という不安が消えたことが主因です。</p>
+
+  <h3>成約率の変化を予測してください</h3>
+
+  <div class="input-box">
+    現在の成約率：        %<br><br>
+    MNP組み込み後の予測成約率：        %<br>
+    （現在より5〜15ポイント向上を基本目標にしてください）<br><br>
+    成約率改善後の月間成約件数：        件<br>
+    （月間商談数 ×  予測成約率 ＝ 予測成約件数）<br><br>
+    成約率改善後の月間売上：<br>
+    新価格（    円） × 予測成約件数（    件） ＝           円
+  </div>
+
+  <hr>
+
+  <!-- 記入例 -->
+  <h2>記入例：古物商コンサルの場合</h2>
+
+  <p>実際に私がJVパートナーと取り組んだ事例をそのまま示します。</p>
+
+  <div class="example-box">
+    <h3>STEP 1（記入例）</h3>
+    <ul>
+      <li>商品名：古物商許可取得＋転売ビジネス起動コンサルティング</li>
+      <li>現在の販売価格：330,000円（税込）</li>
+      <li>現在の成約率：30%（商談10件中3件）</li>
+      <li>月間商談数：10件 / 月間成約数：3件</li>
+      <li>ターゲット：転売ビジネスを本格化したい30〜50代</li>
+    </ul>
+  </div>
+
+  <div class="example-box">
+    <h3>STEP 2（記入例）</h3>
+    <p>選択パターン：A（受講費回収型）</p>
+    <p>組み込み方：古物商許可取得後、MNPスキームを実践し、初月30万円以上の利益を手にしてから転売ビジネスに参入する設計を追加。</p>
+    <p>訴求文：「古物商の許可を取った直後に、MNPで初期費用33万円を回収できます。リスクゼロで転売ビジネスを始められます」</p>
+  </div>
+
+  <div class="example-box">
+    <h3>STEP 3（記入例）</h3>
+    <ul>
+      <li>現在の価格：330,000円</li>
+      <li>MNP付加価値として追加：330,000円（受講費回収分そのまま訴求）</li>
+      <li>新価格：660,000円（単価2倍）</li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr><th></th><th>現在</th><th>掛け合わせ後</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>単価</td><td>33万円</td><td>66万円</td></tr>
+        <tr><td>月間成約件数</td><td>3件</td><td>3件（成約率維持）</td></tr>
+        <tr><td>月間売上</td><td>99万円</td><td>198万円</td></tr>
+        <tr><td>月間増収</td><td>—</td><td>+99万円</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="example-box">
+    <h3>STEP 4（記入例）</h3>
+    <ul>
+      <li>現在の成約率：30%</li>
+      <li>MNP組み込み後の予測成約率：30%（維持）</li>
+      <li>単価が倍になっても成約率が下がらなかった理由：「66万円払っても、MNPで66万円以上回収できる」という訴求が「高い」という反論を無力化したため。</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <h2>このシートを使い終えたら</h2>
+
+  <p>設計が完成したら、次のステップに進んでください。</p>
+
+  <ol>
+    <li>訴求文を実際のセールスページや商談トークに落とし込む</li>
+    <li>試算した新価格で小規模テスト（5〜10件の商談）を行う</li>
+    <li>成約率の変化を記録し、訴求文を調整する</li>
+  </ol>
+
+  <p>設計の段階でわからないことがあれば、個別面談でご相談ください。あなたのビジネスに最適な「即金エンジン」の組み込み方を一緒に考えます。</p>
+
+  <hr>
+
+  <p style="text-align:right; font-style:italic; color:#556677;">池田宜史 / 合同会社アドマーケティング<br>MNPコンサル歴12年・指導実績500名以上</p>
+
+  <div class="page-footer">合同会社アドマーケティング ｜ 無断転載・複製を禁じます</div>
+
+</div>
+
+</body>
+</html>
