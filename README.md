@@ -114,25 +114,45 @@ Claude Code ──→ Workers API ──→ D1
 ### ワンクリックセットアップ
 
 ```bash
-git clone https://github.com/Shudesu/line-harness-oss.git
+git clone https://github.com/ikedachiin-maker/line-harness-oss.git
 cd line-harness-oss
 bash scripts/setup.sh
 ```
 
-このスクリプト1つで以下が全自動で完了します:
+この3行だけで、インフラ構築からデプロイまで全自動で完了します:
 
 | # | 処理内容 | 手動だと… |
 |---|---------|---------|
-| 1 | 依存関係インストール | `pnpm install` |
+| 1 | pnpm チェック＆依存関係インストール | `npm install -g pnpm && pnpm install` |
 | 2 | Cloudflare ログイン | `npx wrangler login` |
-| 3 | アカウントID取得・設定 | whoami → wrangler.toml 手動編集 |
+| 3 | アカウントID自動取得 | whoami → wrangler.toml 手動編集 |
 | 4 | D1 データベース作成 | `npx wrangler d1 create` → ID コピペ |
 | 5 | wrangler.toml 自動書き換え | account_id, database_id を手動編集 |
 | 6 | スキーマ適用 + カラム追加 | schema.sql 実行 + ALTER TABLE ×11 |
 | 7 | public ディレクトリ準備 | mkdir + ファイル配置 |
-| 8 | シークレット6個を順番に案内 | `npx wrangler secret put` ×6 回 |
-| 9 | ビルド + Worker/管理画面デプロイ | pnpm build + wrangler deploy ×2 |
-| 10 | 次の手順を表示 | — |
+| 8 | LINE シークレット6個を順番に案内 | `npx wrangler secret put` ×6 回 |
+| 9 | Discord Bot 設定（y/n で選択） | Bot Token・Channel ID・Public Key・App ID 設定 + スラッシュコマンド登録 |
+| 10 | Worker ビルド＆デプロイ | pnpm build + wrangler deploy |
+| 11 | 管理画面ビルド＆デプロイ | next build + wrangler pages deploy |
+| 12 | QR コード自動生成 | ~/Desktop/QRコード/ に保存 |
+
+### Discord Bot 連携（スクリプト内で選択可能）
+
+セットアップ中に Discord Bot を連携するか聞かれます。連携すると以下のスラッシュコマンドが使えます:
+
+| コマンド | 動作 |
+|---|---|
+| `/friends` | LINE 友だち数を表示 |
+| `/broadcast message:メッセージ` | LINE 全体配信 |
+| `/scenarios` | シナリオ一覧 |
+| `/tags` | タグ一覧と人数 |
+| `/health` | システム状態 |
+
+Discord Bot の事前準備（[Discord Developer Portal](https://discord.com/developers/applications)）:
+
+1. **New Application** でアプリ作成
+2. **Bot** → Reset Token でトークン取得 / Message Content Intent を ON
+3. **OAuth2 → URL Generator** → Scopes: `bot` / Permissions: `メッセージを送る`, `リンクを埋め込み`, `メッセージ履歴を読む`, `スラッシュコマンドを使用` → 生成 URL でサーバーに招待
 
 ### LINE Developers Console で事前に必要な準備
 
@@ -150,7 +170,7 @@ bash scripts/setup.sh
 > ⚠️ LINE Login チャネルがないと `/auth/line` 経由の友だち追加で UUID が取れません。
 > UUID がないとマルチアカウント統合・流入追跡が機能しません。
 
-### スクリプト実行後の手動設定（3つだけ）
+### スクリプト実行後の手動設定（3つ + Discord）
 
 1. **Webhook URL** — LINE Developers Console → Messaging API → Webhook URL:
    ```
@@ -166,6 +186,11 @@ bash scripts/setup.sh
 3. **LIFF エンドポイント URL** — LINE Login → LIFF → 作成したアプリ:
    ```
    https://your-worker.your-subdomain.workers.dev
+   ```
+
+4. **Discord Interactions Endpoint**（Discord Bot 連携した場合のみ）— Discord Developer Portal → General Information → Interactions Endpoint URL:
+   ```
+   https://your-worker.your-subdomain.workers.dev/api/discord/interactions
    ```
 
 ### 動作確認
