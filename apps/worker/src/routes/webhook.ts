@@ -16,6 +16,7 @@ import {
 } from '@line-crm/db';
 import { fireEvent } from '../services/event-bus.js';
 import { buildMessage, expandVariables } from '../services/step-delivery.js';
+import { sendDiscordMessage } from '../services/discord.js';
 import type { Env } from '../index.js';
 
 const webhook = new Hono<Env>();
@@ -66,7 +67,7 @@ webhook.post('/webhook', async (c) => {
   const processingPromise = (async () => {
     for (const event of body.events) {
       try {
-        await handleEvent(db, lineClient, event, channelAccessToken, matchedAccountId, c.env.WORKER_URL || new URL(c.req.url).origin);
+        await handleEvent(db, lineClient, event, channelAccessToken, matchedAccountId, c.env.WORKER_URL || new URL(c.req.url).origin, c.env.DISCORD_BOT_TOKEN, c.env.DISCORD_CHANNEL_ID, c.env.LIFF_URL);
       } catch (err) {
         console.error('Error handling webhook event:', err);
       }
@@ -85,6 +86,9 @@ async function handleEvent(
   lineAccessToken: string,
   lineAccountId: string | null = null,
   workerUrl?: string,
+  discordToken?: string,
+  discordChannelId?: string,
+  liffUrl?: string,
 ): Promise<void> {
   if (event.type === 'follow') {
     const userId =
@@ -172,6 +176,14 @@ async function handleEvent(
       }
     }
 
+    // Discord通知: 友だち追加
+    if (discordToken && discordChannelId) {
+      const name = friend.display_name ?? userId;
+      sendDiscordMessage(discordToken, discordChannelId, `友だち追加: **${name}** がLINEを友だち追加しました。`).catch((err) => {
+        console.error('Discord notify (follow) error:', err);
+      });
+    }
+
     // イベントバス発火: friend_add（replyToken は Step 0 で使用済みの可能性あり）
     await fireEvent(db, 'friend_add', { friendId: friend.id, eventData: { displayName: friend.display_name } }, lineAccessToken, lineAccountId);
     return;
@@ -183,6 +195,13 @@ async function handleEvent(
     if (!userId) return;
 
     await updateFriendFollowStatus(db, userId, false);
+
+    // Discord通知: ブロック
+    if (discordToken && discordChannelId) {
+      sendDiscordMessage(discordToken, discordChannelId, `ブロック: ユーザー \`${userId}\` がブロックしました。`).catch((err) => {
+        console.error('Discord notify (unfollow) error:', err);
+      });
+    }
     return;
   }
 
@@ -282,7 +301,7 @@ async function handleEvent(
               footer: { type: 'box', layout: 'vertical', paddingAll: '16px',
                 contents: [
                   { type: 'button', action: { type: 'message', label: '導入について相談する', text: '導入支援を希望します' }, style: 'primary', color: '#06C755' },
-                  ...(c.env.LIFF_URL ? [{ type: 'button', action: { type: 'uri', label: 'フィードバックを送る', uri: `${c.env.LIFF_URL}?page=form` }, style: 'secondary', margin: 'sm' }] : []),
+                  ...(liffUrl ? [{ type: 'button', action: { type: 'uri', label: 'フィードバックを送る', uri: `${liffUrl}?page=form` }, style: 'secondary', margin: 'sm' }] : []),
                 ],
               },
             }))]);
@@ -356,6 +375,14 @@ async function handleEvent(
         matched = true;
         break;
       }
+    }
+
+    // Discord通知: メッセージ受信（自動キーワード以外のみ）
+    if (discordToken && discordChannelId && !isAutoKeyword && !isTimeCommand) {
+      const name = friend.display_name ?? userId;
+      sendDiscordMessage(discordToken, discordChannelId, `メッセージ受信: **${name}** → ${incomingText}`).catch((err) => {
+        console.error('Discord notify (message) error:', err);
+      });
     }
 
     // イベントバス発火: message_received

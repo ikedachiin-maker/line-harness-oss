@@ -2,21 +2,19 @@ name = "line-harness"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 workers_dev = true
-account_id = "YOUR_DEV_ACCOUNT_ID"
+account_id = "cc99158f07b8bb803ae00a69cc185631"
 
 # Static assets (LIFF pages) served by Workers Assets
 # SPA fallback ensures all non-API paths serve index.html
 [assets]
+directory = "./public"
 not_found_handling = "single-page-application"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "line-harness"
-database_id = "YOUR_DEV_D1_DATABASE_ID"
+database_name = "line-crm"
+database_id = "b3fa01fd-70d2-4f47-99c5-ad09f4c06471"
 
-[[r2_buckets]]
-binding = "IMAGES"
-bucket_name = "line-harness-images"
 
 [triggers]
 crons = ["*/5 * * * *"]

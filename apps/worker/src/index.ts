@@ -37,6 +37,7 @@ import { forms } from './routes/forms.js';
 import { adPlatforms } from './routes/ad-platforms.js';
 import { staff } from './routes/staff.js';
 import { images } from './routes/images.js';
+import { discordRoutes } from './routes/discord.js';
 
 export type Env = {
   Bindings: {
@@ -51,6 +52,8 @@ export type Env = {
     LINE_LOGIN_CHANNEL_SECRET: string;
     WORKER_URL: string;
     X_HARNESS_URL?: string;  // Optional: X Harness API URL for account linking
+    DISCORD_BOT_TOKEN?: string;
+    DISCORD_CHANNEL_ID?: string;
   };
   Variables: {
     staff: { id: string; name: string; role: 'owner' | 'admin' | 'staff' };
@@ -98,6 +101,7 @@ app.route('/', forms);
 app.route('/', adPlatforms);
 app.route('/', staff);
 app.route('/', images);
+app.route('/', discordRoutes);
 
 // Short link: /r/:ref → landing page with LINE open button
 app.get('/r/:ref', (c) => {
