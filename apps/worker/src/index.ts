@@ -54,6 +54,8 @@ export type Env = {
     X_HARNESS_URL?: string;  // Optional: X Harness API URL for account linking
     DISCORD_BOT_TOKEN?: string;
     DISCORD_CHANNEL_ID?: string;
+    DISCORD_PUBLIC_KEY?: string;
+    DISCORD_APP_ID?: string;
   };
   Variables: {
     staff: { id: string; name: string; role: 'owner' | 'admin' | 'staff' };
