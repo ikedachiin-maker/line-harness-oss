@@ -13,3 +13,6 @@ dist/
 .env.staging
 apps/web/out/
 apps/worker/dist/
+
+# Claude Code worktree scratch
+.claude/worktrees/
