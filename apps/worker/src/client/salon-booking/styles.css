@@ -1,0 +1,184 @@
+/* salon-booking 専用 CSS。
+ * Tailwind v4: theme + utilities を取り込み、preflight (base reset) は除外。
+ * preflight を含めると既存 form.ts / Calendar booking 用 inline CSS と衝突する
+ * ため、salon-booking namespace (body.sb-active 配下) にだけ手動 reset を当てる。
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+/* ─── salon-booking namespace の inline 上書き ─────────────
+ * index.html の friend-add 用 inline:
+ *   body { display:flex; align-items:center; min-height:100vh }
+ *   #app  { max-width:480px; padding:24px 16px; width:100% }
+ * は React アプリでは邪魔なので body と #app 双方を上書き。
+ */
+body.sb-active {
+  display: block !important;
+  align-items: stretch !important;
+}
+body.sb-active #app {
+  max-width: none !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* ─── 必要最低限の preflight ────────────────────────────────
+ * Tailwind v4 utilities-only ではブラウザ標準の以下が残る:
+ *   - ul/ol の list-style:disc + padding-left
+ *   - button の border (黒い枠) と padding
+ *   - h1〜h6 / p / dl のマージン
+ *   - input/textarea の font-family ずれ
+ *
+ * 全ルールは :where(body.sb-active) で wrap して specificity を実質 0 にする。
+ * こうしないと `body.sb-active h1` (0,1,2) > `text-base` (0,1,0) で Tailwind
+ * の utility が負けてしまう（黒枠 / 見出しの装飾消失）。:where() で
+ * 包むと (0,0,1) などタグ単体相当に落ちて、utility クラスが常に勝つ。
+ */
+:where(body.sb-active),
+:where(body.sb-active) *,
+:where(body.sb-active) *::before,
+:where(body.sb-active) *::after {
+  box-sizing: border-box;
+}
+:where(body.sb-active) h1,
+:where(body.sb-active) h2,
+:where(body.sb-active) h3,
+:where(body.sb-active) h4,
+:where(body.sb-active) h5,
+:where(body.sb-active) h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+}
+:where(body.sb-active) p,
+:where(body.sb-active) dl,
+:where(body.sb-active) dd,
+:where(body.sb-active) dt,
+:where(body.sb-active) ol,
+:where(body.sb-active) ul,
+:where(body.sb-active) figure,
+:where(body.sb-active) blockquote {
+  margin: 0;
+}
+:where(body.sb-active) ol,
+:where(body.sb-active) ul {
+  list-style: none;
+  padding: 0;
+}
+:where(body.sb-active) button {
+  font-family: inherit;
+  font-size: 100%;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+  border: 0;
+  cursor: pointer;
+}
+:where(body.sb-active) button:disabled {
+  cursor: not-allowed;
+}
+:where(body.sb-active) input,
+:where(body.sb-active) textarea,
+:where(body.sb-active) select {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+}
+:where(body.sb-active) textarea {
+  resize: vertical;
+}
+:where(body.sb-active) img,
+:where(body.sb-active) svg,
+:where(body.sb-active) video,
+:where(body.sb-active) canvas {
+  display: block;
+  max-width: 100%;
+}
+:where(body.sb-active) a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+/* LINE 緑テーマ */
+.sb-line-green { background-color: #06C755; }
+.sb-line-green-text { color: #06C755; }
+
+/* fade-in / slide-up アニメーション */
+@keyframes sb-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sb-fade-in { animation: sb-fade-in 0.25s ease both; }
+
+@keyframes sb-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sb-slide-up { animation: sb-slide-up 0.3s ease both; }
+
+/* spinner */
+@keyframes sb-spin { to { transform: rotate(360deg); } }
+.sb-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #06C755;
+  border-radius: 9999px;
+  animation: sb-spin 0.8s linear infinite;
+}
+
+/* スロットボタン */
+.sb-slot-btn {
+  padding: 10px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  background: #ecfdf5;
+  color: #06C755;
+  border: 1.5px solid #06C755;
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s, color 0.15s;
+}
+.sb-slot-btn:active {
+  transform: scale(0.96);
+  background-color: #06C755;
+  color: #fff;
+}
+
+/* セクションカード */
+.sb-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* ステータスバッジ */
+.sb-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* 戻るボタン (汎用) — 全 step 共通の見た目に */
+.sb-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px 8px 10px;
+  font-size: 13px;
+  color: #4b5563;
+  background: #fff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  transition: background-color 0.15s;
+}
+.sb-back-btn:hover { background: #f9fafb; }
+.sb-back-btn:active { background: #f3f4f6; }

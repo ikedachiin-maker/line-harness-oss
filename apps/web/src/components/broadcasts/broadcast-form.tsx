@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Tag } from '@line-crm/shared'
-import { api, type ApiBroadcast } from '@/lib/api'
+import { api, eventsApi, type ApiBroadcast, type EventListItem } from '@/lib/api'
+import { useAccount } from '@/contexts/account-context'
 import FlexPreviewComponent from '@/components/flex-preview'
+import ImageUploader from '@/components/shared/image-uploader'
+import MultiAccountDedupSection from './multi-account-dedup-section'
 
 interface BroadcastFormProps {
   tags: Tag[]
@@ -25,9 +28,26 @@ interface FormState {
   targetTagId: string
   scheduledAt: string
   sendNow: boolean
+  accountIds: string[]
+  dedupPriority: string[]
+  trackLinks: boolean
 }
 
 export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFormProps) {
+  const { selectedAccountId } = useAccount()
+  // Network timeout後の再クリックでも同じ作成要求として扱い、二重予約を防ぐ。
+  const createIdempotencyKey = useRef(crypto.randomUUID())
+  // 「リンクするイベント」セレクタ用: 公開中の events を取得して
+  // 選択された event の LIFF URL (テンプレ) を message に挿入する。
+  const [linkableEvents, setLinkableEvents] = useState<EventListItem[]>([])
+  useEffect(() => {
+    if (!selectedAccountId) return
+    let cancelled = false
+    eventsApi.listEvents(selectedAccountId)
+      .then((r) => { if (!cancelled) setLinkableEvents(r.items.filter((e) => e.is_published === 1)) })
+      .catch(() => { /* silent */ })
+    return () => { cancelled = true }
+  }, [selectedAccountId])
   const [form, setForm] = useState<FormState>({
     title: '',
     messageType: 'text',
@@ -36,6 +56,9 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
     targetTagId: '',
     scheduledAt: '',
     sendNow: true,
+    accountIds: [],
+    dedupPriority: [],
+    trackLinks: true,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -50,6 +73,10 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
       setError('予約配信の場合は配信日時を指定してください')
       return
     }
+    if (form.targetType === 'multi-account-dedup' && form.accountIds.length === 0) {
+      setError('複数アカ重複除外: 配信先アカウントを 1 つ以上選択してください')
+      return
+    }
 
     setSaving(true)
     setError('')
@@ -59,14 +86,24 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
         messageType: form.messageType,
         messageContent: form.messageContent,
         targetType: form.targetType,
-        targetTagId: form.targetType === 'tag' ? form.targetTagId || null : null,
+        // tag mode: required; multi-account-dedup mode: optional narrowing filter; else: null
+        targetTagId:
+          form.targetType === 'tag'
+            ? form.targetTagId || null
+            : form.targetType === 'multi-account-dedup'
+            ? form.targetTagId || null
+            : null,
         status: 'draft',
+        lineAccountId: form.targetType === 'multi-account-dedup' ? null : (selectedAccountId || null),
+        accountIds: form.targetType === 'multi-account-dedup' ? form.accountIds : undefined,
+        dedupPriority: form.targetType === 'multi-account-dedup' ? form.dedupPriority : undefined,
+        trackLinks: form.trackLinks,
         // datetime-local returns YYYY-MM-DDTHH:mm in JST wall-clock time
         // Append +09:00 so new Date() parses correctly for epoch comparisons
         scheduledAt: form.sendNow || !form.scheduledAt
           ? null
           : form.scheduledAt + ':00.000+09:00',
-      })
+      }, { idempotencyKey: createIdempotencyKey.current })
       if (res.success) {
         onSuccess()
       } else {
@@ -128,43 +165,66 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
             )}
           </label>
 
-          {/* Image helper: URL inputs that auto-generate the required LINE image JSON */}
-          {form.messageType === 'image' && (() => {
-            let parsed: { originalContentUrl?: string; previewImageUrl?: string } = {}
-            try { parsed = JSON.parse(form.messageContent) } catch { /* not yet valid */ }
-            return (
-              <div className="space-y-2 mb-2">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">元画像URL (originalContentUrl)</label>
-                  <input
-                    type="url"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="https://example.com/image.png"
-                    value={parsed.originalContentUrl ?? ''}
-                    onChange={(e) => {
-                      const orig = e.target.value
-                      const prev = parsed.previewImageUrl ?? orig
-                      setForm({ ...form, messageContent: JSON.stringify({ originalContentUrl: orig, previewImageUrl: prev }) })
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">プレビュー画像URL (previewImageUrl)</label>
-                  <input
-                    type="url"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="https://example.com/preview.png (空欄で元画像と同じ)"
-                    value={parsed.previewImageUrl ?? ''}
-                    onChange={(e) => {
-                      const prev = e.target.value
-                      setForm({ ...form, messageContent: JSON.stringify({ originalContentUrl: parsed.originalContentUrl ?? '', previewImageUrl: prev }) })
-                    }}
-                  />
-                </div>
-              </div>
-            )
-          })()}
+          {/* Image helper: ImageUploader that auto-generates the required LINE image JSON */}
+          {form.messageType === 'image' && (
+            <div className="mb-2">
+              <ImageUploader
+                mode="line-image"
+                value={(() => {
+                  try {
+                    const parsed = JSON.parse(form.messageContent) as { originalContentUrl?: string; previewImageUrl?: string }
+                    if (parsed.originalContentUrl) {
+                      return { mode: 'line-image' as const, originalContentUrl: parsed.originalContentUrl, previewImageUrl: parsed.previewImageUrl ?? parsed.originalContentUrl }
+                    }
+                  } catch { /* ignore */ }
+                  return null
+                })()}
+                onChange={(v) => {
+                  if (v?.mode === 'line-image') {
+                    setForm((prev) => ({ ...prev, messageContent: JSON.stringify({ originalContentUrl: v.originalContentUrl, previewImageUrl: v.previewImageUrl }) }))
+                  } else {
+                    setForm((prev) => ({ ...prev, messageContent: '' }))
+                  }
+                }}
+                label="送信する画像"
+              />
+            </div>
+          )}
 
+          {/* リンクするイベント: 選択で {{liff_id}} 入りテンプレ URL を本文末尾に挿入 */}
+          {linkableEvents.length > 0 && form.messageType === 'text' && (
+            <div className="mb-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                リンクするイベント（任意）
+              </label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (!id) return
+                  const url = `https://liff.line.me/{{liff_id}}/?page=event&id=${id}&liffId={{liff_id}}`
+                  setForm((prev) => ({
+                    ...prev,
+                    messageContent: prev.messageContent
+                      ? `${prev.messageContent}\n${url}`
+                      : url,
+                  }))
+                  e.target.value = ''
+                }}
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
+              >
+                <option value="">— 選択しない —</option>
+                {linkableEvents.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} ({ev.target_type === 'multi-account-dedup' ? 'multi' : 'single'})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                選ぶと本文末尾にテンプレ URL を挿入。{'{{liff_id}}'} は配信時に各友だちのアカに対応した値に自動置換されます。
+              </p>
+            </div>
+          )}
           <textarea
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-y"
             rows={form.messageType === 'flex' ? 8 : form.messageType === 'image' ? 3 : 4}
@@ -192,6 +252,23 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
           )}
         </div>
 
+        {/* Link tracking toggle */}
+        {form.messageType !== 'image' && (
+          <div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.trackLinks}
+                onChange={(e) => setForm({ ...form, trackLinks: e.target.checked })}
+              />
+              このメッセージでリンクを短縮する（クリック計測）
+            </label>
+            <p className="text-xs text-gray-500 mt-1 ml-6">
+              ONにすると本文のURLが計測用リンク（/t/…）に自動変換されます。OFFの場合はURLをそのまま送信します。
+            </p>
+          </div>
+        )}
+
         {/* Target */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-2">配信対象</label>
@@ -218,6 +295,17 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
             >
               タグで絞り込み
             </button>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, targetType: 'multi-account-dedup', targetTagId: '' })}
+              className={`px-3 py-1.5 min-h-[44px] text-xs font-medium rounded-md border transition-colors ${
+                form.targetType === 'multi-account-dedup'
+                  ? 'border-green-500 text-green-700 bg-green-50'
+                  : 'border-gray-300 text-gray-600 bg-white hover:border-gray-400'
+              }`}
+            >
+              複数アカ重複除外
+            </button>
           </div>
           {form.targetType === 'tag' && (
             <select
@@ -230,6 +318,17 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
                 <option key={tag.id} value={tag.id}>{tag.name}</option>
               ))}
             </select>
+          )}
+          {form.targetType === 'multi-account-dedup' && (
+            <MultiAccountDedupSection
+              accountIds={form.accountIds}
+              dedupPriority={form.dedupPriority}
+              targetTagId={form.targetTagId || null}
+              tags={tags}
+              onAccountIdsChange={(ids) => setForm({ ...form, accountIds: ids })}
+              onDedupPriorityChange={(ids) => setForm({ ...form, dedupPriority: ids })}
+              onTargetTagIdChange={(id) => setForm({ ...form, targetTagId: id ?? '' })}
+            />
           )}
         </div>
 

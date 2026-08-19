@@ -1,15 +1,15 @@
 # 23. Claude Code 連携ガイド
 
-LINE Harness を Claude Code (AI) から操作するための完全ガイド。API ファーストで設計されており、全操作が CLI/API から実行可能。
+L Harness を Claude Code (AI) から操作するための完全ガイド。API ファーストで設計されており、全操作が CLI/API から実行可能。
 
 ---
 
 ## 概要
 
-LINE Harness は「AI-first CRM」として設計されている。管理画面での手動操作ではなく、Claude Code からの自然言語指示で全機能を操作することを前提としている。
+L Harness は「AI-first CRM」として設計されている。管理画面での手動操作ではなく、Claude Code からの自然言語指示で全機能を操作することを前提としている。
 
 ```
-[ユーザー] --自然言語--> [Claude Code] --curl/SDK--> [LINE Harness API] --LINE API--> [友だち]
+[ユーザー] --自然言語--> [Claude Code] --curl/SDK--> [L Harness API] --LINE API--> [友だち]
 ```
 
 ---
@@ -21,19 +21,19 @@ LINE Harness は「AI-first CRM」として設計されている。管理画面�
 ```bash
 # API が動作していることを確認
 curl -s -H "Authorization: Bearer YOUR_API_KEY" \
-  https://line-crm-worker.line-crm-api.workers.dev/api/friends/count
+  https://your-worker.your-subdomain.workers.dev/api/friends/count
 ```
 
 ### 2. line-harness スキルの設定
 
-Claude Code のスキルとして登録することで、自然言語から LINE Harness 操作が可能になる。
+Claude Code のスキルとして登録することで、自然言語から L Harness 操作が可能になる。
 
 CLAUDE.md またはプロジェクトの memory に以下を記載:
 
 ```markdown
-## LINE Harness
+## L Harness
 
-- API URL: https://line-crm-worker.line-crm-api.workers.dev
+- API URL: https://your-worker.your-subdomain.workers.dev
 - API Key: (wrangler secretで管理)
 - SDK: @line-harness/sdk (packages/sdk/)
 - ドキュメント: /Users/axpr/claudecode/tools/line-harness/docs/wiki/
@@ -45,7 +45,7 @@ CLAUDE.md またはプロジェクトの memory に以下を記載:
 import { LineHarness } from '@line-harness/sdk'
 
 const lh = new LineHarness({
-  apiUrl: 'https://line-crm-worker.line-crm-api.workers.dev',
+  apiUrl: 'https://your-worker.your-subdomain.workers.dev',
   apiKey: process.env.LINE_HARNESS_API_KEY!,
 })
 ```
@@ -170,7 +170,7 @@ curl -s -H "Authorization: Bearer $KEY" \
 Claude Code の実行:
 
 ```bash
-API="https://line-crm-worker.line-crm-api.workers.dev"
+API="https://your-worker.your-subdomain.workers.dev"
 KEY="YOUR_API_KEY"
 
 # シナリオ作成
@@ -265,7 +265,7 @@ pnpm -r build
 pnpm deploy:worker
 
 # デプロイ確認
-curl -s https://line-crm-worker.line-crm-api.workers.dev/api/friends/count \
+curl -s https://your-worker.your-subdomain.workers.dev/api/friends/count \
   -H "Authorization: Bearer $KEY" | jq '.data.count'
 ```
 
@@ -308,7 +308,7 @@ await lh.broadcastText('全員へのお知らせ')
 
 ```bash
 # エンドポイント一覧を確認
-curl -s https://line-crm-worker.line-crm-api.workers.dev/openapi.json | jq '.paths | keys'
+curl -s https://your-worker.your-subdomain.workers.dev/openapi.json | jq '.paths | keys'
 ```
 
 ### 4. jq でデータ加工
@@ -332,11 +332,11 @@ done
 
 ### Cron + Claude Code
 
-launchd や cron で定期的に Claude Code を実行し、LINE Harness を自動操作:
+launchd や cron で定期的に Claude Code を実行し、L Harness を自動操作:
 
 ```bash
 # 毎週月曜日に CV レポートを Slack に送信
-0 9 * * 1 claude -m "LINE Harness のCVレポートを取得して、Slack の #marketing チャネルに投稿して"
+0 9 * * 1 claude -m "L Harness のCVレポートを取得して、Slack の #marketing チャネルに投稿して"
 ```
 
 ### Webhook トリガー

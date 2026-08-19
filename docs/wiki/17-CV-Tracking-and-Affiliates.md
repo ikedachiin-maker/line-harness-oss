@@ -1,6 +1,6 @@
 # 17. CV (コンバージョン) トラッキング & アフィリエイト
 
-LINE Harness のコンバージョン計測・アフィリエイト管理・流入経路追跡の完全リファレンス。
+L Harness のコンバージョン計測・アフィリエイト管理・流入経路追跡の完全リファレンス。
 
 ---
 
@@ -105,7 +105,7 @@ CVトラッキングは3つの柱で構成される:
 
 #### CV ポイント一覧取得
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/points" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/conversions/points" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -127,7 +127,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/po
 
 #### CV ポイント作成
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/points" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/conversions/points" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -142,7 +142,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/p
 
 #### CV ポイント削除
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/points/{id}" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/conversions/points/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -150,7 +150,7 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/conversions
 
 #### コンバージョン記録
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/track" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/conversions/track" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -183,7 +183,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/t
 
 #### CV イベント一覧取得 (フィルタ付き)
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/events?\
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/conversions/events?\
 conversionPointId=550e8400-...&\
 friendId=friend-uuid&\
 affiliateCode=partner-a&\
@@ -197,7 +197,7 @@ limit=50&offset=0" \
 
 #### CV レポート取得 (集計)
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/conversions/report?\
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/conversions/report?\
 startDate=2026-03-01&endDate=2026-03-31" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
@@ -222,19 +222,19 @@ startDate=2026-03-01&endDate=2026-03-31" \
 
 #### アフィリエイト一覧
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/affiliates" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 #### アフィリエイト詳細
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/{id}" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/affiliates/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 #### アフィリエイト作成
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/affiliates" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -249,7 +249,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates" \
 
 #### アフィリエイト更新
 ```bash
-curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/{id}" \
+curl -X PUT "https://your-worker.your-subdomain.workers.dev/api/affiliates/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -261,7 +261,7 @@ curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/{id
 
 #### アフィリエイト削除
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/{id}" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/affiliates/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -270,7 +270,7 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/
 **認証不要** (公開エンドポイント)
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/click" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/affiliates/click" \
   -H "Content-Type: application/json" \
   -d '{
     "code": "tanaka-01",
@@ -285,7 +285,7 @@ IPアドレスは `CF-Connecting-IP` / `X-Forwarded-For` ヘッダーから自�
 
 #### 個別レポート
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates/{id}/report?\
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/affiliates/{id}/report?\
 startDate=2026-03-01&endDate=2026-03-31" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
@@ -308,7 +308,7 @@ startDate=2026-03-01&endDate=2026-03-31" \
 
 #### 全体レポート
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/affiliates-report?\
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/affiliates-report?\
 startDate=2026-03-01&endDate=2026-03-31" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
@@ -334,7 +334,7 @@ startDate=2026-03-01&endDate=2026-03-31" \
 
 ### Stripe イベント一覧取得
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/integrations/stripe/events?\
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/integrations/stripe/events?\
 friendId=friend-uuid&eventType=payment_intent.succeeded&limit=50" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
@@ -372,7 +372,7 @@ Stripe のメタデータに `line_friend_id` を設定することで、友だ�
 ```typescript
 const lh = new LineHarness({ apiUrl: '...', apiKey: '...' });
 const authUrl = lh.getAuthUrl({ ref: 'instagram', redirect: 'https://example.com/thanks' });
-// => https://line-crm-worker.line-crm-api.workers.dev/auth/line?ref=instagram&redirect=...
+// => https://your-worker.your-subdomain.workers.dev/auth/line?ref=instagram&redirect=...
 ```
 
 ### 流入経路の仕組み

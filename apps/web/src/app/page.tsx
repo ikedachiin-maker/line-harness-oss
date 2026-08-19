@@ -71,6 +71,79 @@ function StatCard({ title, value, loading, icon, href, accentColor = '#06C755' }
   )
 }
 
+// 友だち追加リンクの即時取得カード。/auth/line は UUID 付与・アカウント解決・
+// PC では QR ランディング表示までやる正規の流入口なので、共有リンクは常に
+// これを配る (公式の lin.ee 直リンクだと計測も UUID 紐づけも失われる)。
+function FriendAddLinkCard() {
+  const { selectedAccount } = useAccount()
+  const [copied, setCopied] = useState(false)
+  const [showQr, setShowQr] = useState(false)
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '')
+  const link = selectedAccount
+    ? `${base}/auth/line?account=${encodeURIComponent(selectedAccount.channelId)}`
+    : `${base}/auth/line`
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch {
+      // clipboard requires a secure context; the input below allows manual copy
+    }
+  }
+
+  return (
+    <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">友だち追加リンク</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {selectedAccount
+              ? `${selectedAccount.displayName || selectedAccount.name} への追加リンク (UUID計測つき)`
+              : 'デフォルトアカウントへの追加リンク (UUID計測つき)'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowQr((v) => !v)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 font-medium text-gray-600"
+        >
+          {showQr ? 'QRを隠す' : 'QR表示'}
+        </button>
+      </div>
+      <div className="flex items-stretch gap-2">
+        <input
+          readOnly
+          value={link}
+          onFocus={(e) => e.currentTarget.select()}
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono bg-gray-50 text-gray-700 truncate"
+        />
+        <button
+          type="button"
+          onClick={onCopy}
+          className="px-4 rounded-lg text-xs font-medium text-white shrink-0"
+          style={{ backgroundColor: copied ? '#059669' : '#06C755' }}
+        >
+          {copied ? 'コピーしました ✓' : 'コピー'}
+        </button>
+      </div>
+      {showQr && (
+        <div className="mt-3 flex justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- worker QR proxy, not a static asset */}
+          <img
+            src={`${base}/api/qr?data=${encodeURIComponent(link)}&size=240x240`}
+            alt="友だち追加QRコード"
+            width={240}
+            height={240}
+            className="border border-gray-200 rounded-lg"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { selectedAccountId, selectedAccount } = useAccount()
   const [stats, setStats] = useState<DashboardStats>({
@@ -95,7 +168,7 @@ export default function DashboardPage() {
           api.broadcasts.list(),
           api.templates.list(),
           api.automations.list(),
-          api.scoring.rules(),
+          api.mileage.rules(),
         ])
 
         setStats({
@@ -151,9 +224,11 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <FriendAddLinkCard />
+
       {/* Demo banner */}
       <a
-        href="https://line-crm-worker.line-crm-api.workers.dev/auth/line?ref=dashboard"
+        href="https://your-worker.your-subdomain.workers.dev/auth/line?ref=dashboard"
         target="_blank"
         rel="noopener noreferrer"
         className="block mb-6 p-4 rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-colors"
@@ -240,7 +315,7 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          title="スコアリングルール数"
+          title="マイル付与ルール数"
           value={stats.scoringRuleCount}
           loading={loading}
           href="/scoring"

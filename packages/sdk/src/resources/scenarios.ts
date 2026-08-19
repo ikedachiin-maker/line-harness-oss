@@ -5,6 +5,7 @@ import type {
   ScenarioListItem,
   ScenarioWithSteps,
   ScenarioStep,
+  ScenarioStats,
   CreateScenarioInput,
   CreateStepInput,
   UpdateScenarioInput,
@@ -66,6 +67,11 @@ export class ScenariosResource {
     const res = await this.http.post<ApiResponse<FriendScenarioEnrollment>>(
       `/api/scenarios/${scenarioId}/enroll/${friendId}`
     )
+    return res.data
+  }
+
+  async getStats(id: string): Promise<ScenarioStats> {
+    const res = await this.http.get<ApiResponse<ScenarioStats>>(`/api/scenarios/${id}/stats`)
     return res.data
   }
 }

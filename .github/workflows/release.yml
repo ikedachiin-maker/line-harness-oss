@@ -1,0 +1,288 @@
+name: Release
+
+# Tag-driven release pipeline.
+#
+# Trigger: any annotated/lightweight tag matching `v*.*.*` (e.g. `v0.1.0-rc1`).
+#
+# Pipeline:
+#   1. Install deps (frozen lockfile).
+#   2. Run unit tests (scripts/* + per-package).
+#   3. Migration safety check (additive-only policy).
+#   4. Build Worker script, Worker Assets, Admin, LIFF.
+#   5. Compute SHA256 hashes via inject-version, then rebuild Worker with
+#      _version.ts embedded so /_version reflects the shipping bundle.
+#   6. Produce `bundle.tar.gz` via scripts/release/build-bundle.ts.
+#   7. Generate `release-entry.json` (version, hashes, sizes, migrations,
+#      required_secrets, min_from_version).
+#   8. Pull previous `release-manifest.json` from the latest existing
+#      release (if any), merge the new entry, write the updated manifest.
+#   9. Publish a **draft** GitHub Release with all three artifacts.
+#      Drafts gate human review per SPEC §13 before the rollout flow
+#      considers the version "shipping".
+#
+# Required secrets for downstream installs (documented here so create-line-harness
+# stays in sync):
+#   - LINE_CHANNEL_TOKEN
+#   - LINE_CHANNEL_SECRET
+#   - LINE_LOGIN_CHANNEL_ID
+#   - ADMIN_API_KEY
+#   - LIFF_URL
+#
+# This workflow itself only needs the default `GITHUB_TOKEN` to create a
+# draft Release — no Cloudflare credentials are required. Deploy workflows
+# are intentionally separate.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          # Strip the leading "v" — manifest entries use plain semver.
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Migration safety check
+        run: pnpm tsx scripts/check-migrations.ts
+
+      - name: Run unit tests (scripts)
+        run: pnpm test:scripts
+
+      - name: Build shared workspace packages
+        run: pnpm --filter @line-crm/shared --filter @line-crm/line-sdk --filter @line-crm/db --filter @line-harness/update-engine --filter @line-harness/sdk build
+
+      - name: Run every workspace typecheck
+        run: pnpm -r --workspace-concurrency=1 --if-present run typecheck
+
+      - name: Run every populated workspace test suite
+        run: |
+          pnpm --filter @line-crm/db test
+          pnpm --filter @line-harness/update-engine test
+          pnpm --filter create-line-harness test
+          pnpm --filter worker test
+          pnpm --filter web test
+          pnpm --filter liff test
+
+      - name: Capture build metadata
+        id: build-meta
+        run: echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build Admin (Next.js static export)
+        # Placeholder URL gets baked into the bundle. End users replace it at
+        # install time (Phase 2 will introduce runtime config to avoid this).
+        env:
+          NEXT_PUBLIC_API_URL: "https://__LH_WORKER_URL__"
+          APP_BUILD_TIME: ${{ steps.build-meta.outputs.build_time }}
+        run: pnpm --filter web build
+
+      - name: Build LIFF
+        # apps/liff exists in the workspace; if its build is not yet
+        # green this step will surface that, which is preferable to
+        # silently shipping a stale dist.
+        run: pnpm --filter liff build
+
+      - name: Build Worker Assets
+        # This is the full Worker-served client (forms, booking, webinar,
+        # affiliate, etc.). It is intentionally distinct from apps/liff.
+        run: pnpm --filter worker build
+
+      - name: Write CI wrangler config for artifact builds
+        # The repo's wrangler.toml ships placeholder account/database ids for
+        # OSS consumers. Artifact builds only need the entrypoint + compat
+        # settings; bindings/assets do not change the built script bytes.
+        run: |
+          cat > apps/worker/wrangler.ci.toml <<'TOML'
+          name = "line-harness"
+          main = "src/index.ts"
+          compatibility_date = "2024-12-01"
+          compatibility_flags = ["nodejs_compat"]
+          TOML
+
+      - name: Build Worker artifact (first pass — for identity hashing)
+        # `wrangler deploy --dry-run --outdir` emits EXACTLY the single-file
+        # module wrangler would upload — the same build path every real
+        # deployment uses (GH Actions deploy + create-line-harness). The
+        # vite build is NOT usable here: it splits the worker into
+        # index.js + assets/*.js chunks, and a bundle that ships only
+        # index.js deploys a broken re-export stub.
+        run: |
+          pnpm --filter worker exec wrangler deploy --dry-run \
+            --config wrangler.ci.toml --outdir dist-release
+
+      - name: Compute hashes + inject _version.ts
+        id: hashes
+        run: |
+          # Hash the wrangler-built single-file artifact. This value is
+          # baked into _version.ts as the Worker's self-reported identity
+          # (worker_hash); the final artifact's byte hash is computed
+          # separately as worker_bundle_hash after the rebuild.
+          json=$(pnpm tsx apps/worker/scripts/inject-version.ts \
+            --version "${{ steps.version.outputs.version }}" \
+            --worker apps/worker/dist-release/index.js \
+            --worker-assets apps/worker/dist/client \
+            --admin apps/web/out \
+            --liff apps/liff/dist \
+            --out apps/worker/src/_version.ts)
+
+          echo "json<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$json" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          # Extract individual hashes for the manifest entry.
+          worker_hash=$(node -e "console.log(JSON.parse(process.argv[1]).workerHash)" "$json")
+          admin_hash=$(node -e "console.log(JSON.parse(process.argv[1]).adminHash)" "$json")
+          liff_hash=$(node -e "console.log(JSON.parse(process.argv[1]).liffHash)" "$json")
+          worker_assets_hash=$(node -e "console.log(JSON.parse(process.argv[1]).workerAssetsHash)" "$json")
+          released_at=$(node -e "console.log(JSON.parse(process.argv[1]).releasedAt)" "$json")
+
+          echo "worker_hash=${worker_hash}" >> "$GITHUB_OUTPUT"
+          echo "admin_hash=${admin_hash}" >> "$GITHUB_OUTPUT"
+          echo "liff_hash=${liff_hash}" >> "$GITHUB_OUTPUT"
+          echo "worker_assets_hash=${worker_assets_hash}" >> "$GITHUB_OUTPUT"
+          echo "released_at=${released_at}" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild Worker artifact (with embedded _version.ts)
+        run: |
+          rm -rf apps/worker/dist-release
+          pnpm --filter worker exec wrangler deploy --dry-run \
+            --config wrangler.ci.toml --outdir dist-release
+
+      - name: Compute worker_bundle_hash (detached hash of the final artifact)
+        # The artifact embeds its own identity hash, so its byte hash can
+        # never equal worker_hash — download verification needs this
+        # detached value instead.
+        id: bundlehash
+        run: |
+          worker_bundle_hash=$(node -e "const{createHash}=require('node:crypto');const{readFileSync}=require('node:fs');console.log('sha256:'+createHash('sha256').update(readFileSync('apps/worker/dist-release/index.js')).digest('hex'))")
+          echo "worker_bundle_hash=${worker_bundle_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release bundle
+        run: |
+          mkdir -p dist
+          pnpm tsx scripts/release/build-bundle.ts \
+            --worker-js apps/worker/dist-release/index.js \
+            --worker-assets apps/worker/dist/client \
+            --admin apps/web/out \
+            --liff apps/liff/dist \
+            --migrations packages/db/migrations \
+            --out dist/bundle.tar.gz
+
+      - name: Compute bundle size
+        id: bundle
+        run: |
+          size=$(stat -c%s dist/bundle.tar.gz)
+          echo "size=${size}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine cumulative migrations for safe upgrades
+        id: migrations
+        run: |
+          # Include the supported additive bridge from 037 onward. v0.14.1's
+          # base+setup already establishes 001-036, while two older files use
+          # destructive table rebuilds and must never be replayed statement by
+          # statement. The checksum ledger makes this cumulative set safe.
+          migrations_json=$(ls packages/db/migrations \
+            | awk '/^03[7-9]_|^0[4-9][0-9]_|^[1-9][0-9][0-9]_/' \
+            | jq -R . | jq -sc .)
+          if [ -z "$migrations_json" ] || [ "$migrations_json" = "null" ]; then
+            migrations_json="[]"
+          fi
+          echo "list=${migrations_json}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release-entry.json
+        run: |
+          bundle_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.version.outputs.tag }}/bundle.tar.gz"
+          changelog_url="https://github.com/${GITHUB_REPOSITORY}/blob/${{ steps.version.outputs.tag }}/CHANGELOG.md"
+
+          # min_from_version: 0.0.0 for the first release so the upgrade
+          # flow accepts any prior install. Bump for breaking releases
+          # that require a prior version.
+          cat > release-entry.json <<JSON
+          {
+            "version": "${{ steps.version.outputs.version }}",
+            "released_at": "${{ steps.hashes.outputs.released_at }}",
+            "worker_hash": "${{ steps.hashes.outputs.worker_hash }}",
+            "worker_bundle_hash": "${{ steps.bundlehash.outputs.worker_bundle_hash }}",
+            "worker_assets_hash": "${{ steps.hashes.outputs.worker_assets_hash }}",
+            "admin_hash": "${{ steps.hashes.outputs.admin_hash }}",
+            "liff_hash": "${{ steps.hashes.outputs.liff_hash }}",
+            "bundle_url": "${bundle_url}",
+            "bundle_size_bytes": ${{ steps.bundle.outputs.size }},
+            "required_secrets": [
+              "LINE_CHANNEL_TOKEN",
+              "LINE_CHANNEL_SECRET",
+              "LINE_LOGIN_CHANNEL_ID",
+              "ADMIN_API_KEY",
+              "LIFF_URL"
+            ],
+            "new_required_secrets": [],
+            "migrations": ${{ steps.migrations.outputs.list }},
+            "changelog_url": "${changelog_url}",
+            "min_from_version": "0.0.0"
+          }
+          JSON
+
+          cat release-entry.json
+
+      - name: Fetch previous release-manifest.json (if any)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Pull the manifest from the most recent published release that
+          # isn't this tag. If none exists, start fresh — update-manifest.ts
+          # initialises { schema_version: 1, latest, releases: [] } on first
+          # write.
+          prev_tag=$(gh release list --limit 5 --json tagName --jq '.[].tagName' 2>/dev/null \
+            | grep -v "^${{ steps.version.outputs.tag }}$" \
+            | head -n 1 || true)
+
+          if [ -n "$prev_tag" ]; then
+            echo "Pulling manifest from previous release: $prev_tag"
+            gh release download "$prev_tag" --pattern 'release-manifest.json' \
+              --output release-manifest.json 2>/dev/null \
+              || echo "No release-manifest.json on $prev_tag — starting fresh."
+          else
+            echo "No previous release — starting fresh manifest."
+          fi
+
+      - name: Update release-manifest.json
+        run: |
+          pnpm tsx scripts/release/update-manifest.ts \
+            --manifest release-manifest.json \
+            --release release-entry.json
+          cat release-manifest.json
+
+      - name: Publish draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/bundle.tar.gz
+            release-manifest.json
+            release-entry.json

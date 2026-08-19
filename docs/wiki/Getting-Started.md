@@ -1,4 +1,4 @@
-# Getting Started — LINE Harness 初期セットアップガイド
+# Getting Started — L Harness 初期セットアップガイド
 
 ## 前提条件
 
@@ -36,13 +36,29 @@ LINE Login チャネルを作り、`/auth/line?ref=xxx` 経由で友だち追加
 - **広告クリックID記録**（gclid/fbclid/UTM）
 - **マルチアカウント横断の同一人物判定**
 
-が全て自動化される。これが LINE Harness の核心機能。
+が全て自動化される。これが L Harness の核心機能。
 
 1. LINE Developers Console → 同一プロバイダー内で「LINE Login」チャネルを作成
 2. 「LIFF」タブで LIFF アプリを追加
 3. エンドポイント URL: デプロイ後の Worker URL を設定（LIFF は Worker に統合されています）
 4. Scope: `profile`, `openid` を有効化
-5. 控える値:
+5. **Callback URL を設定（PC からの友だち追加に必須）**:
+
+   LINE Developers Console → LINE Login チャネル → **「LINEログイン設定」タブ**:
+   - 「**ウェブアプリでLINEログインを利用する**」を **ON** にする
+   - 「**Callback URL**」に以下を貼り付け:
+
+     ```
+     https://{your-worker}.workers.dev/auth/callback
+     ```
+
+   > **⚠️ ここが抜けると PC 経由の友だち追加が "Invalid redirect_uri" で silent fail します。**
+   > スマホ（LINE アプリ）経由は LIFF SDK が内部で auth するので Callback URL を経由しません。そのため
+   > スマホで動作確認すると素通りしますが、QR を PC で踏んだユーザーが詰むので必ず設定してください。
+
+6. 「リンクされたLINE公式アカウント」で公式アカウントを選択 → 「友だち追加オプション」を **On (aggressive)** に設定（LIFF/OAuth ログイン中に「友だち追加」を強制プロンプト）
+
+7. 控える値:
 
 | 項目 | 環境変数 |
 |------|---------|
@@ -103,7 +119,7 @@ database_id = "ここに貼り付け"
 
 ```bash
 # 本番D1にスキーマ適用
-npx wrangler d1 execute line-crm --file=packages/db/schema.sql
+npx wrangler d1 execute your-database --file=packages/db/schema.sql
 
 # ローカルD1にスキーマ適用（開発用）
 pnpm db:migrate:local
@@ -151,7 +167,7 @@ npx wrangler secret put LINE_LOGIN_CHANNEL_SECRET
 
 | 変数名 | 説明 |
 |--------|------|
-| `NEXT_PUBLIC_API_URL` | Workers API の URL（例: `https://line-crm-worker.line-crm-api.workers.dev`） |
+| `NEXT_PUBLIC_API_URL` | Workers API の URL（例: `https://your-worker.your-subdomain.workers.dev`） |
 
 > **セキュリティ注意**: `NEXT_PUBLIC_*` にAPIキーを設定しないでください。管理画面のログインページでAPIキーを入力する方式に変更されました（v0.5.1+）。
 
@@ -162,7 +178,7 @@ npx wrangler secret put LINE_LOGIN_CHANNEL_SECRET
 pnpm deploy:worker
 
 # デプロイ後に表示されるURLを控える
-# 例: https://line-crm-worker.your-subdomain.workers.dev
+# 例: https://your-worker-name.your-subdomain.workers.dev
 ```
 
 ### ローカル開発
@@ -180,11 +196,11 @@ pnpm dev:web
 1. [LINE Developers Console](https://developers.line.biz/console/) → チャネル → Messaging API
 2. Webhook URL に以下を設定:
    ```
-   https://line-crm-worker.your-subdomain.workers.dev/webhook
+   https://your-worker-name.your-subdomain.workers.dev/webhook
    ```
 3. 「Use webhook」を有効化
 4. 「Verify」ボタンで接続テスト → 成功すればOK
-5. 「Auto-reply messages」を **無効** に設定（LINE Harness側で制御するため）
+5. 「Auto-reply messages」を **無効** に設定（L Harness側で制御するため）
 6. 「Greeting messages」を **無効** に設定（シナリオで制御するため）
 
 ## 7. 管理画面デプロイ
@@ -193,7 +209,7 @@ pnpm dev:web
 
 ```bash
 cd apps/web
-npx wrangler pages deploy .next --project-name=line-crm-admin
+npx wrangler pages deploy .next --project-name=your-admin-name
 ```
 
 ### Vercel
@@ -218,7 +234,7 @@ LINE公式アカウントを友だち追加し、友だちが自動登録され�
 
 ```bash
 # 友だち一覧を取得
-curl -s https://line-crm-worker.line-crm-api.workers.dev/api/friends \
+curl -s https://your-worker.your-subdomain.workers.dev/api/friends \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
@@ -252,10 +268,10 @@ curl -s https://line-crm-worker.line-crm-api.workers.dev/api/friends \
 
 ```bash
 # 友だちにテキストメッセージを送信
-curl -X POST https://line-crm-worker.line-crm-api.workers.dev/api/friends/{friendId}/messages \
+curl -X POST https://your-worker.your-subdomain.workers.dev/api/friends/{friendId}/messages \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"content": "LINE Harness から送信テスト！"}'
+  -d '{"content": "L Harness から送信テスト！"}'
 ```
 
 ### 8.3 管理画面ログイン確認
@@ -267,7 +283,7 @@ curl -X POST https://line-crm-worker.line-crm-api.workers.dev/api/friends/{frien
 5分毎の Cron トリガーが動作しているか確認:
 
 ```bash
-# Cloudflare ダッシュボード → Workers → line-crm-worker → Triggers
+# Cloudflare ダッシュボード → Workers → your-worker-name → Triggers
 # Cron Triggers に */5 * * * * が表示されていればOK
 ```
 
@@ -281,7 +297,7 @@ npm install @line-harness/sdk
 import { LineHarness } from '@line-harness/sdk'
 
 const client = new LineHarness({
-  apiUrl: 'https://line-crm-worker.line-crm-api.workers.dev',
+  apiUrl: 'https://your-worker.your-subdomain.workers.dev',
   apiKey: 'YOUR_API_KEY',
 })
 
@@ -303,5 +319,7 @@ await client.friends.addTag(friends.items[0].id, tag.id)
 | Webhook Verify 失敗 | URL誤り or Workers未デプロイ | URLとデプロイ状態を確認 |
 | 401 Unauthorized | API_KEY 不一致 | `wrangler secret list` で設定確認 |
 | 友だち追加しても登録されない | Webhook無効 or シグネチャ不一致 | LINE Console で Webhook 有効化確認 |
+| PC から QR で友だち追加できない／"Invalid redirect_uri" | LINE Login チャネルに Callback URL 未登録 | LINE Login チャネル → 「LINEログイン設定」タブ → 「ウェブアプリでLINEログインを利用する」ON → 「Callback URL」に `{worker}/auth/callback` を貼る |
+| スマホで動くのに PC で動かない | 同上（LIFF はスマホで OAuth Callback 経由しない、PC は経由する） | 同上 |
 | Cron が動かない | wrangler.toml に crons 未設定 | `[triggers] crons = ["*/5 * * * *"]` を確認 |
-| CORS エラー | origin 不一致 | Workers は `origin: '*'` で全許可（MVP） |
+| CORS エラー | 管理画面の Origin が Worker の `ADMIN_ORIGIN` 許可リストに入っていない | `npx create-line-harness@latest update` を実行。Cloudflare Pages の本番URL / 同じプロジェクトのプレビューURLは許可されます。別ドメインで開いている場合は Worker の `ADMIN_ORIGIN` を実際の管理画面URLに更新 |

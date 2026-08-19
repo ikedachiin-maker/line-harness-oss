@@ -25,6 +25,14 @@ export function registerCreateForm(server: McpServer): void {
         .string()
         .optional()
         .describe("Scenario ID to auto-enroll when form is submitted"),
+      onSubmitMessageType: z
+        .enum(["text", "flex"])
+        .optional()
+        .describe("Custom message type to send after submission. Supports template variables: {{name}}, {{auth_url:CHANNEL_ID}}"),
+      onSubmitMessageContent: z
+        .string()
+        .optional()
+        .describe("Custom message content to send after submission. If set, replaces the default confirmation Flex."),
       saveToMetadata: z
         .boolean()
         .default(true)
@@ -33,6 +41,9 @@ export function registerCreateForm(server: McpServer): void {
         .string()
         .optional()
         .describe("LINE account ID (uses default if omitted)"),
+      ogTitle: z.string().nullable().optional().describe("OGP title override for the form's LIFF page preview"),
+      ogDescription: z.string().nullable().optional().describe("OGP description override for the form's LIFF page preview"),
+      ogImageUrl: z.string().nullable().optional().describe("OGP image URL override for the form's LIFF page preview"),
     },
     async ({
       name,
@@ -40,7 +51,12 @@ export function registerCreateForm(server: McpServer): void {
       fields,
       onSubmitTagId,
       onSubmitScenarioId,
+      onSubmitMessageType,
+      onSubmitMessageContent,
       saveToMetadata,
+      ogTitle,
+      ogDescription,
+      ogImageUrl,
     }) => {
       try {
         const client = getClient();
@@ -50,7 +66,12 @@ export function registerCreateForm(server: McpServer): void {
           fields: JSON.parse(fields),
           onSubmitTagId,
           onSubmitScenarioId,
+          onSubmitMessageType,
+          onSubmitMessageContent,
           saveToMetadata,
+          ogTitle,
+          ogDescription,
+          ogImageUrl,
         });
         return {
           content: [

@@ -1,7 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getClient } from "../client.js";
-import { autoTrackUrls } from "./auto-track-urls.js";
 
 export function registerSendMessage(server: McpServer): void {
   server.tool(
@@ -26,24 +25,58 @@ export function registerSendMessage(server: McpServer): void {
         .describe(
           "Custom notification preview text for Flex Messages (shown on lock screen). If omitted, auto-extracted from Flex content.",
         ),
+      isTest: z
+        .boolean()
+        .default(false)
+        .describe(
+          "Mark as test send. Prepends 【テスト配信】 to text messages, adds test banner to flex messages.",
+        ),
+      trackLinks: z
+        .boolean()
+        .default(true)
+        .describe(
+          "Set false to disable automatic URL shortening (/t/ tracking links). URLs are sent as-is. Default true.",
+        ),
     },
-    async ({ friendId, content, messageType, altText }) => {
+    async ({ friendId, content, messageType, altText, isTest, trackLinks }) => {
       try {
         const client = getClient();
 
-        // Auto-track URLs in flex messages
-        const { content: trackedContent } = await autoTrackUrls(
-          client,
-          content,
-          messageType,
-          `DM to ${friendId.slice(0, 8)}`,
-        );
+        // Add test label
+        let finalContent = content;
+        if (isTest) {
+          if (messageType === "text") {
+            finalContent = `【テスト配信】\n${content}`;
+          } else if (messageType === "flex") {
+            try {
+              const flex = JSON.parse(content);
+              // Wrap in a carousel with a test banner
+              finalContent = JSON.stringify({
+                type: "bubble",
+                header: {
+                  type: "box",
+                  layout: "vertical",
+                  backgroundColor: "#FFE066",
+                  paddingAll: "8px",
+                  contents: [{ type: "text", text: "⚠️ テスト配信", size: "sm", weight: "bold", color: "#333", align: "center" }],
+                },
+                ...(flex.type === "bubble" ? { body: flex.body, footer: flex.footer } : { body: { type: "box", layout: "vertical", contents: [{ type: "text", text: "テスト配信", wrap: true }] } }),
+              });
+            } catch {
+              finalContent = content;
+            }
+          }
+        }
 
+        // URL の短縮 (auto-track) は worker が送信時に行う (friend の所属アカウント
+        // 付きでリンクを所有させるため、ここでは変換しない)。trackLinks=false は
+        // API に渡して worker 側の短縮もスキップさせる。
         const result = await client.friends.sendMessage(
           friendId,
-          trackedContent,
+          finalContent,
           messageType,
           altText,
+          { trackLinks },
         );
         return {
           content: [

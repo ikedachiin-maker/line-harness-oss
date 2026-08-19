@@ -1,6 +1,6 @@
 # 21. デプロイメント
 
-LINE Harness のローカル開発、本番デプロイ、CI/CD の完全ガイド。
+L Harness のローカル開発、本番デプロイ、CI/CD の完全ガイド。
 
 ---
 
@@ -98,7 +98,7 @@ pnpm deploy:worker
 ### wrangler.toml 設定
 
 ```toml
-name = "line-crm-worker"
+name = "your-worker-name"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 workers_dev = true
@@ -188,7 +188,7 @@ pnpm deploy:web
 
 # 2. Cloudflare Pages にデプロイ
 # Dashboard から GitHub リポジトリを接続、または:
-wrangler pages deploy apps/web/.next --project-name=line-crm-admin
+wrangler pages deploy apps/web/.next --project-name=your-admin-name
 ```
 
 ### Pages 設定
@@ -229,14 +229,14 @@ https://line-harness.your-account.workers.dev
 
 ```bash
 pnpm db:migrate
-# => wrangler d1 execute line-crm --file=packages/db/schema.sql
+# => wrangler d1 execute your-database --file=packages/db/schema.sql
 ```
 
 ### ローカル
 
 ```bash
 pnpm db:migrate:local
-# => wrangler d1 execute line-crm --file=packages/db/schema.sql --local
+# => wrangler d1 execute your-database --file=packages/db/schema.sql --local
 ```
 
 スキーマは `CREATE TABLE IF NOT EXISTS` を使用しているため、冪等に実行可能。既存テーブルはスキップされる。
@@ -279,7 +279,7 @@ wrangler d1 create line-crm
 
 `workers_dev = true` の場合、自動的に割り当てられる:
 ```
-https://line-crm-worker.{account}.workers.dev
+https://your-worker-name.{account}.workers.dev
 ```
 
 ### カスタムドメイン
@@ -299,7 +299,7 @@ routes = [
 
 LINE Developers Console > Messaging API > Webhook URL:
 ```
-https://line-crm-worker.line-crm-api.workers.dev/webhook
+https://your-worker.your-subdomain.workers.dev/webhook
 ```
 
 ---
@@ -345,14 +345,14 @@ https://line-crm-worker.line-crm-api.workers.dev/webhook
 
 ```bash
 # API ヘルスチェック
-curl https://line-crm-worker.line-crm-api.workers.dev/openapi.json
+curl https://your-worker.your-subdomain.workers.dev/openapi.json
 
 # 認証テスト
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-  https://line-crm-worker.line-crm-api.workers.dev/api/friends/count
+  https://your-worker.your-subdomain.workers.dev/api/friends/count
 
 # Swagger UI
-open https://line-crm-worker.line-crm-api.workers.dev/docs
+open https://your-worker.your-subdomain.workers.dev/docs
 ```
 
 ---

@@ -23,6 +23,11 @@ import { registerManageBroadcasts } from "./manage-broadcasts.js";
 import { registerManageRichMenus } from "./manage-rich-menus.js";
 import { registerManageForms } from "./manage-forms.js";
 import { registerManageTrackedLinks } from "./manage-tracked-links.js";
+import { registerManageAutoReplies } from "./manage-auto-replies.js";
+import { registerManageTrafficPools } from "./manage-traffic-pools.js";
+import { registerManageMessageTemplates } from "./manage-message-templates.js";
+import { registerListConversations } from "./list-conversations.js";
+import { registerGetConversation } from "./get-conversation.js";
 
 export function registerAllTools(server: McpServer): void {
   registerSendMessage(server);
@@ -49,4 +54,9 @@ export function registerAllTools(server: McpServer): void {
   registerManageRichMenus(server);
   registerManageForms(server);
   registerManageTrackedLinks(server);
+  registerManageAutoReplies(server);
+  registerManageTrafficPools(server);
+  registerManageMessageTemplates(server);
+  registerListConversations(server);
+  registerGetConversation(server);
 }

@@ -1,0 +1,70 @@
+name: Bug report
+description: Report something that is not working
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Please remove secrets, tokens, account IDs, friend IDs, LINE user IDs, webhook URLs, message contents, screenshots with customer data, and production exports before submitting.
+
+        If this report includes an unpatched vulnerability, exploit path, credential leak, auth bypass, cross-account data access, or sensitive proof of concept, do not file a public issue. Use the security policy instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List the smallest steps that reproduce the problem.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: L Harness version
+      placeholder: "v0.15.0"
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Node 22, pnpm 9, Cloudflare Workers/D1"
+  - type: dropdown
+    id: risk_area
+    attributes:
+      label: Risk area
+      description: Pick the closest area. This helps maintainers triage safely.
+      options:
+        - "General UI / docs"
+        - "Setup / deploy / update"
+        - "Auth / API key / CORS / staff permission"
+        - "LINE webhook / postback / reply token"
+        - "Broadcast / multicast / step delivery / reminder"
+        - "D1 migration / account scoping / data deletion"
+        - "SDK / MCP / CLI"
+        - "Not sure"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste only sanitized logs. Do not include secrets or customer data.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, tokens, account IDs, friend IDs, customer data, and private URLs.
+          required: true
+        - label: This does not publicly disclose an unpatched security vulnerability.
+          required: true

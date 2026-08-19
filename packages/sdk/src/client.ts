@@ -9,6 +9,8 @@ import { FormsResource } from './resources/forms.js'
 import { AdPlatformsResource } from './resources/ad-platforms.js'
 import { StaffResource } from './resources/staff.js'
 import { ImagesResource } from './resources/images.js'
+import { AutoRepliesResource } from './resources/auto-replies.js'
+import { ConversationsResource } from './resources/conversations.js'
 import { Workflows } from './workflows.js'
 import type { LineHarnessConfig, StepDefinition, ScenarioTriggerType, ScenarioWithSteps, Broadcast, MessageType, SegmentCondition } from './types.js'
 
@@ -23,6 +25,8 @@ export class LineHarness {
   readonly adPlatforms: AdPlatformsResource
   readonly staff: StaffResource
   readonly images: ImagesResource
+  readonly autoReplies: AutoRepliesResource
+  readonly conversations: ConversationsResource
 
   private readonly apiUrl: string
   private readonly defaultAccountId: string | undefined
@@ -55,6 +59,8 @@ export class LineHarness {
     this.adPlatforms = new AdPlatformsResource(http)
     this.staff = new StaffResource(http)
     this.images = new ImagesResource(http)
+    this.autoReplies = new AutoRepliesResource(http, this.defaultAccountId)
+    this.conversations = new ConversationsResource(http, this.defaultAccountId)
     this.workflows = new Workflows(this.friends, this.scenarios, this.broadcasts)
 
     this.createStepScenario = this.workflows.createStepScenario.bind(this.workflows)

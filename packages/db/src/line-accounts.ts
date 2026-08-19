@@ -13,7 +13,13 @@ export interface LineAccount {
   login_channel_secret: string | null;
   liff_id: string | null;
   is_active: number;
+  country: string | null;
+  role: string | null;
+  display_order: number;
   token_expires_at: string | null;
+  og_site_name: string | null;
+  og_default_image_url: string | null;
+  og_default_description: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +29,12 @@ export interface CreateLineAccountInput {
   name: string;
   channelAccessToken: string;
   channelSecret: string;
+  loginChannelId?: string | null;
+  loginChannelSecret?: string | null;
+  liffId?: string | null;
+  ogSiteName?: string | null;
+  ogDefaultImageUrl?: string | null;
+  ogDefaultDescription?: string | null;
 }
 
 export async function createLineAccount(
@@ -32,12 +44,39 @@ export async function createLineAccount(
   const id = crypto.randomUUID();
   const now = jstNow();
 
+  // Auto-fill display_order to (max existing + 1) so new accounts go to the end.
+  // COALESCE handles the empty-table case: -1 + 1 = 0.
+  const orderRow = await db
+    .prepare(`SELECT COALESCE(MAX(display_order), -1) + 1 AS next FROM line_accounts`)
+    .first<{ next: number }>();
+  const displayOrder = orderRow?.next ?? 0;
+
   await db
     .prepare(
-      `INSERT INTO line_accounts (id, channel_id, name, channel_access_token, channel_secret, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+      `INSERT INTO line_accounts
+         (id, channel_id, name, channel_access_token, channel_secret,
+          login_channel_id, login_channel_secret, liff_id,
+          is_active, display_order,
+          og_site_name, og_default_image_url, og_default_description,
+          created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, input.channelId, input.name, input.channelAccessToken, input.channelSecret, now, now)
+    .bind(
+      id,
+      input.channelId,
+      input.name,
+      input.channelAccessToken,
+      input.channelSecret,
+      input.loginChannelId ?? null,
+      input.loginChannelSecret ?? null,
+      input.liffId ?? null,
+      displayOrder,
+      input.ogSiteName ?? null,
+      input.ogDefaultImageUrl ?? null,
+      input.ogDefaultDescription ?? null,
+      now,
+      now,
+    )
     .run();
 
   return (await getLineAccountById(db, id))!;
@@ -55,7 +94,7 @@ export async function getLineAccountById(
 
 export async function getLineAccounts(db: D1Database): Promise<LineAccount[]> {
   const result = await db
-    .prepare(`SELECT * FROM line_accounts ORDER BY created_at DESC`)
+    .prepare(`SELECT * FROM line_accounts ORDER BY display_order ASC, created_at ASC`)
     .all<LineAccount>();
   return result.results;
 }
@@ -71,7 +110,20 @@ export async function getLineAccountByChannelId(
 }
 
 export type UpdateLineAccountInput = Partial<
-  Pick<LineAccount, 'name' | 'channel_access_token' | 'channel_secret' | 'is_active' | 'token_expires_at'>
+  Pick<
+    LineAccount,
+    | 'name'
+    | 'channel_access_token'
+    | 'channel_secret'
+    | 'login_channel_id'
+    | 'login_channel_secret'
+    | 'liff_id'
+    | 'is_active'
+    | 'token_expires_at'
+    | 'og_site_name'
+    | 'og_default_image_url'
+    | 'og_default_description'
+  >
 >;
 
 export async function updateLineAccount(
@@ -94,6 +146,18 @@ export async function updateLineAccount(
     fields.push('channel_secret = ?');
     values.push(updates.channel_secret);
   }
+  if (updates.login_channel_id !== undefined) {
+    fields.push('login_channel_id = ?');
+    values.push(updates.login_channel_id);
+  }
+  if (updates.login_channel_secret !== undefined) {
+    fields.push('login_channel_secret = ?');
+    values.push(updates.login_channel_secret);
+  }
+  if (updates.liff_id !== undefined) {
+    fields.push('liff_id = ?');
+    values.push(updates.liff_id);
+  }
   if (updates.is_active !== undefined) {
     fields.push('is_active = ?');
     values.push(updates.is_active);
@@ -101,6 +165,18 @@ export async function updateLineAccount(
   if (updates.token_expires_at !== undefined) {
     fields.push('token_expires_at = ?');
     values.push(updates.token_expires_at);
+  }
+  if (updates.og_site_name !== undefined) {
+    fields.push('og_site_name = ?');
+    values.push(updates.og_site_name);
+  }
+  if (updates.og_default_image_url !== undefined) {
+    fields.push('og_default_image_url = ?');
+    values.push(updates.og_default_image_url);
+  }
+  if (updates.og_default_description !== undefined) {
+    fields.push('og_default_description = ?');
+    values.push(updates.og_default_description);
   }
 
   if (fields.length === 0) return getLineAccountById(db, id);
@@ -122,4 +198,93 @@ export async function deleteLineAccount(
   id: string,
 ): Promise<void> {
   await db.prepare(`DELETE FROM line_accounts WHERE id = ?`).bind(id).run();
+}
+
+export interface UpdateLineAccountFieldsInput {
+  country?: string | null;
+  role?: string | null;
+  isActive?: boolean;
+  loginChannelId?: string | null;
+  loginChannelSecret?: string | null;
+  liffId?: string | null;
+  ogSiteName?: string | null;
+  ogDefaultImageUrl?: string | null;
+  ogDefaultDescription?: string | null;
+}
+
+export async function updateLineAccountFields(
+  db: D1Database,
+  id: string,
+  input: UpdateLineAccountFieldsInput,
+): Promise<LineAccount | null> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+
+  if (input.country !== undefined) {
+    sets.push('country = ?');
+    binds.push(input.country); // empty string normalization happens at the route layer
+  }
+  if (input.role !== undefined) {
+    sets.push('role = ?');
+    binds.push(input.role);
+  }
+  if (input.isActive !== undefined) {
+    sets.push('is_active = ?');
+    binds.push(input.isActive ? 1 : 0);
+  }
+  if (input.loginChannelId !== undefined) {
+    sets.push('login_channel_id = ?');
+    binds.push(input.loginChannelId);
+  }
+  if (input.loginChannelSecret !== undefined) {
+    sets.push('login_channel_secret = ?');
+    binds.push(input.loginChannelSecret);
+  }
+  if (input.liffId !== undefined) {
+    sets.push('liff_id = ?');
+    binds.push(input.liffId);
+  }
+  if (input.ogSiteName !== undefined) {
+    sets.push('og_site_name = ?');
+    binds.push(input.ogSiteName);
+  }
+  if (input.ogDefaultImageUrl !== undefined) {
+    sets.push('og_default_image_url = ?');
+    binds.push(input.ogDefaultImageUrl);
+  }
+  if (input.ogDefaultDescription !== undefined) {
+    sets.push('og_default_description = ?');
+    binds.push(input.ogDefaultDescription);
+  }
+
+  if (sets.length === 0) {
+    return getLineAccountById(db, id);
+  }
+
+  sets.push('updated_at = ?');
+  binds.push(jstNow());
+  binds.push(id);
+
+  await db
+    .prepare(`UPDATE line_accounts SET ${sets.join(', ')} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+
+  return getLineAccountById(db, id);
+}
+
+export async function updateLineAccountOrder(
+  db: D1Database,
+  ordered: Array<{ id: string; displayOrder: number }>,
+): Promise<void> {
+  if (ordered.length === 0) return;
+
+  const now = jstNow();
+  const stmts = ordered.map(({ id, displayOrder }) =>
+    db.prepare(`UPDATE line_accounts SET display_order = ?, updated_at = ? WHERE id = ?`)
+      .bind(displayOrder, now, id),
+  );
+
+  // db.batch is atomic on D1; if any UPDATE fails, none commit.
+  await db.batch(stmts);
 }

@@ -190,6 +190,22 @@ export default function FriendTable({ friends, allTags, onRefresh }: FriendTable
                           <p className="text-xs text-gray-600 font-mono">{friend.lineUserId}</p>
                         </div>
 
+                        {/* IG account attribution (written by IG Harness cross-link, first touch) */}
+                        {(() => {
+                          const meta = (friend as unknown as { metadata?: Record<string, unknown> }).metadata
+                          const igUsername = meta?.ig_account_username as string | undefined
+                          const igAccountId = meta?.ig_account_id as string | undefined
+                          if (!igUsername && !igAccountId) return null
+                          return (
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 mb-1">流入元 Instagram</p>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-700">
+                                IG: {igUsername ? `@${igUsername}` : igAccountId} 経由
+                              </span>
+                            </div>
+                          )
+                        })()}
+
                         {/* Tag management */}
                         <div>
                           <p className="text-xs font-semibold text-gray-500 mb-2">タグ管理</p>

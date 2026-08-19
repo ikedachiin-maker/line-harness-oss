@@ -26,7 +26,18 @@ export function registerManageBroadcasts(server: McpServer): void {
 
         if (action === "list") {
           const broadcasts = await client.broadcasts.list(accountId ? { accountId } : undefined);
-          return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, broadcasts }, null, 2) }] };
+          const rows = broadcasts as unknown as Array<Record<string, unknown>>;
+          const enriched = rows.map((b) => ({
+            ...b,
+            insightStatus: b.insight_status || null,
+            openRate: b.open_rate != null
+              ? `${(Number(b.open_rate) * 100).toFixed(1)}%`
+              : null,
+            clickRate: b.click_rate != null
+              ? `${(Number(b.click_rate) * 100).toFixed(1)}%`
+              : null,
+          }));
+          return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, broadcasts: enriched }, null, 2) }] };
         }
 
         if (action === "create_draft") {
@@ -45,7 +56,31 @@ export function registerManageBroadcasts(server: McpServer): void {
 
         if (action === "get") {
           const broadcast = await client.broadcasts.get(broadcastId);
-          return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, broadcast }, null, 2) }] };
+          const row = broadcast as unknown as Record<string, unknown>;
+          const insight = row.insight_status
+            ? {
+                status: row.insight_status,
+                delivered: row.delivered ?? null,
+                uniqueImpression: row.unique_impression ?? null,
+                uniqueClick: row.unique_click ?? null,
+                uniqueMediaPlayed: row.unique_media_played ?? null,
+                openRate: row.open_rate != null
+                  ? `${(Number(row.open_rate) * 100).toFixed(1)}%`
+                  : null,
+                clickRate: row.click_rate != null
+                  ? `${(Number(row.click_rate) * 100).toFixed(1)}%`
+                  : null,
+                fetchedAt: row.insight_fetched_at ?? null,
+              }
+            : null;
+          const enriched = {
+            ...broadcast,
+            insight: insight || {
+              status: 'none',
+              note: 'Insightデータは次回配信から自動取得されます',
+            },
+          };
+          return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, broadcast: enriched }, null, 2) }] };
         }
 
         if (action === "update") {

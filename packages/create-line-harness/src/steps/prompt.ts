@@ -8,32 +8,26 @@ interface LineCredentials {
 }
 
 export async function promptLineCredentials(): Promise<LineCredentials> {
-  p.log.step(
-    "LINE Developers Console でチャネル情報を確認してください\nhttps://developers.line.biz/console/",
-  );
+  // ═══ Step 2: Messaging API チャネル設定 ═══
+  p.log.step("═══ Step 2. Messaging API チャネル設定 ═══");
 
-  p.log.info(
-    [
-      "必要なチャネル（2つ）:",
-      "  1. Messaging API チャネル — Botのメッセージ送受信用",
-      "  2. LINE Login チャネル   — ユーザー認証・LIFF用",
-      "",
-      "まだ作っていなければ、上のURLから作成してください。",
-    ].join("\n"),
-  );
-
-  // --- Messaging API ---
+  // Step 2-1: Channel ID
   p.log.message(
     [
-      "── Messaging API ──",
-      "場所: LINE Official Account Manager → 設定 → Messaging API",
-      "  https://manager.line.biz/ → アカウント選択 → 設定 → Messaging API",
+      "■ Step 2-1. Channel ID 取得",
+      "",
+      "https://manager.line.biz/ にアクセス",
+      "→ アカウント選択",
+      "→ 右上の歯車アイコンの設定",
+      "→ サイドメニュー「Messaging API」",
+      "→ プロバイダーを作成",
+      "→ Channel ID",
     ].join("\n"),
   );
 
   const lineChannelId = await p.text({
     message: "Channel ID（数字）",
-    placeholder: "同じページに表示されている Channel ID",
+    placeholder: "上の手順で取得した Channel ID",
     validate(value) {
       if (!value || !/^\d+$/.test(value.trim())) {
         return "Channel ID は数字で入力してください";
@@ -45,23 +39,17 @@ export async function promptLineCredentials(): Promise<LineCredentials> {
     process.exit(0);
   }
 
-  const lineChannelAccessToken = await p.text({
-    message: "チャネルアクセストークン（長期）",
-    placeholder: "Messaging API設定 → チャネルアクセストークン → 発行",
-    validate(value) {
-      if (!value || value.trim().length < 10) {
-        return "チャネルアクセストークンを入力してください";
-      }
-    },
-  });
-  if (p.isCancel(lineChannelAccessToken)) {
-    p.cancel("セットアップをキャンセルしました");
-    process.exit(0);
-  }
+  // Step 2-2: Channel Secret
+  p.log.message(
+    [
+      "■ Step 2-2. Channel Secret 取得",
+      "※ Step 2-1 で Channel ID を取得した際、Channel Secret も同じページに表示されています",
+    ].join("\n"),
+  );
 
   const lineChannelSecret = await p.text({
-    message: "チャネルシークレット",
-    placeholder: "チャネル基本設定 → チャネルシークレット",
+    message: "チャネルシークレット（英数字）",
+    placeholder: "同じページに表示されている Channel Secret",
     validate(value) {
       if (!value || value.trim().length < 10) {
         return "チャネルシークレットを入力してください";
@@ -73,19 +61,53 @@ export async function promptLineCredentials(): Promise<LineCredentials> {
     process.exit(0);
   }
 
-  // --- LINE Login ---
+  // Step 2-3: Channel Access Token
   p.log.message(
     [
-      "── LINE Login チャネル ──",
-      "場所: LINE Developers Console → プロバイダー → LINE Login チャネル",
-      "  https://developers.line.biz/console/",
-      "  ※ Messaging API とは別のチャネルです",
+      "■ Step 2-3. チャネルアクセストークン取得",
+      "",
+      "https://developers.line.biz/console/ にアクセス",
+      "→ Step 2 で設定したプロバイダーを選択",
+      "→ Messaging API チャネル",
+      "→ 「Messaging API設定」タブ",
+      "→ チャネルアクセストークンを発行",
+    ].join("\n"),
+  );
+
+  const lineChannelAccessToken = await p.text({
+    message: "チャネルアクセストークン（長期）",
+    placeholder: "上の手順で発行したトークン",
+    validate(value) {
+      if (!value || value.trim().length < 10) {
+        return "チャネルアクセストークンを入力してください";
+      }
+    },
+  });
+  if (p.isCancel(lineChannelAccessToken)) {
+    p.cancel("セットアップをキャンセルしました");
+    process.exit(0);
+  }
+
+  // ═══ Step 3: LINE Login チャネル設定 ═══
+  p.log.step("═══ Step 3. LINE Login チャネル設定 ═══");
+
+  // Step 3-1: LINE Login Channel ID
+  p.log.message(
+    [
+      "■ Step 3-1. チャネル ID 取得",
+      "",
+      "https://developers.line.biz/console/ にアクセス",
+      "→ Step 2 で設定したプロバイダーを選択",
+      "→ 新規チャネル作成",
+      "→ LINE ログイン",
+      "→ 基本情報設定",
+      "→ チャネル ID",
     ].join("\n"),
   );
 
   const lineLoginChannelId = await p.text({
     message: "チャネル ID（数字）",
-    placeholder: "チャネル基本設定 → チャネルID（例: 2009554425）",
+    placeholder: "LINE Login チャネルの ID（Messaging API とは別）",
     validate(value) {
       if (!value || !/^\d+$/.test(value.trim())) {
         return "チャネル ID は数字で入力してください";

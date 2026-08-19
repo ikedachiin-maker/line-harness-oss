@@ -10,9 +10,17 @@ export interface Form {
   fields: string; // JSON string of FormField[]
   on_submit_tag_id: string | null;
   on_submit_scenario_id: string | null;
+  on_submit_message_type: 'text' | 'flex' | null;
+  on_submit_message_content: string | null; // supports template variables: {{name}}, {{auth_url:CHANNEL_ID}}, etc.
+  on_submit_webhook_url: string | null;
+  on_submit_webhook_headers: string | null;
+  on_submit_webhook_fail_message: string | null;
   save_to_metadata: number;
   is_active: number;
   submit_count: number;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +33,11 @@ export interface FormSubmission {
   created_at: string;
 }
 
+export interface FriendFormSubmission extends FormSubmission {
+  form_name: string;
+  form_fields: string;
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function getForms(db: D1Database): Promise<Form[]> {
@@ -32,6 +45,67 @@ export async function getForms(db: D1Database): Promise<Form[]> {
     .prepare(`SELECT * FROM forms ORDER BY created_at DESC`)
     .all<Form>();
   return result.results;
+}
+
+export interface FormUsedByAccount {
+  id: string;
+  name: string;
+  country: string | null;
+  displayOrder: number;
+  count: number;
+}
+
+export interface FormWithStats extends Form {
+  last_submitted_at: string | null;
+  used_by_accounts: FormUsedByAccount[];
+}
+
+export async function getFormsWithStats(db: D1Database): Promise<FormWithStats[]> {
+  // Single query: forms + last submission + per-account submission counts.
+  // json_group_array returns '[]' (not NULL) when subquery yields no rows.
+  const result = await db
+    .prepare(
+      `SELECT
+         f.*,
+         (SELECT MAX(created_at) FROM form_submissions WHERE form_id = f.id) AS last_submitted_at,
+         (SELECT json_group_array(
+                   json_object(
+                     'id', la.id,
+                     'name', la.name,
+                     'country', la.country,
+                     'displayOrder', la.display_order,
+                     'count', sub.cnt
+                   )
+                 )
+            FROM (
+              SELECT fr.line_account_id, COUNT(*) AS cnt
+              FROM form_submissions fs
+              JOIN friends fr ON fr.id = fs.friend_id
+              WHERE fs.form_id = f.id AND fr.line_account_id IS NOT NULL
+              GROUP BY fr.line_account_id
+            ) sub
+            JOIN line_accounts la ON la.id = sub.line_account_id) AS used_by_accounts_json
+       FROM forms f
+       ORDER BY
+         CASE WHEN last_submitted_at IS NULL THEN 1 ELSE 0 END,
+         last_submitted_at DESC,
+         f.created_at DESC`,
+    )
+    .all<Form & { last_submitted_at: string | null; used_by_accounts_json: string | null }>();
+
+  return result.results.map((row) => {
+    const { used_by_accounts_json, ...rest } = row;
+    let parsed: FormUsedByAccount[] = [];
+    if (used_by_accounts_json) {
+      try {
+        const arr = JSON.parse(used_by_accounts_json) as FormUsedByAccount[];
+        parsed = arr.sort((a, b) => a.displayOrder - b.displayOrder);
+      } catch {
+        parsed = [];
+      }
+    }
+    return { ...rest, used_by_accounts: parsed };
+  });
 }
 
 export async function getFormById(db: D1Database, id: string): Promise<Form | null> {
@@ -47,7 +121,15 @@ export interface CreateFormInput {
   fields: string; // JSON string
   onSubmitTagId?: string | null;
   onSubmitScenarioId?: string | null;
+  onSubmitMessageType?: 'text' | 'flex' | null;
+  onSubmitMessageContent?: string | null;
+  onSubmitWebhookUrl?: string | null;
+  onSubmitWebhookHeaders?: string | null;
+  onSubmitWebhookFailMessage?: string | null;
   saveToMetadata?: boolean;
+  ogTitle?: string | null;
+  ogDescription?: string | null;
+  ogImageUrl?: string | null;
 }
 
 export async function createForm(db: D1Database, input: CreateFormInput): Promise<Form> {
@@ -58,8 +140,12 @@ export async function createForm(db: D1Database, input: CreateFormInput): Promis
     .prepare(
       `INSERT INTO forms
          (id, name, description, fields, on_submit_tag_id, on_submit_scenario_id,
-          save_to_metadata, is_active, submit_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`,
+          on_submit_message_type, on_submit_message_content,
+          on_submit_webhook_url, on_submit_webhook_headers, on_submit_webhook_fail_message,
+          save_to_metadata, is_active, submit_count,
+          og_title, og_description, og_image_url,
+          created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -68,7 +154,15 @@ export async function createForm(db: D1Database, input: CreateFormInput): Promis
       input.fields,
       input.onSubmitTagId ?? null,
       input.onSubmitScenarioId ?? null,
+      input.onSubmitMessageType ?? null,
+      input.onSubmitMessageContent ?? null,
+      input.onSubmitWebhookUrl ?? null,
+      input.onSubmitWebhookHeaders ?? null,
+      input.onSubmitWebhookFailMessage ?? null,
       input.saveToMetadata !== false ? 1 : 0,
+      input.ogTitle ?? null,
+      input.ogDescription ?? null,
+      input.ogImageUrl ?? null,
       now,
       now,
     )
@@ -83,8 +177,16 @@ export interface UpdateFormInput {
   fields?: string;
   onSubmitTagId?: string | null;
   onSubmitScenarioId?: string | null;
+  onSubmitMessageType?: 'text' | 'flex' | null;
+  onSubmitMessageContent?: string | null;
+  onSubmitWebhookUrl?: string | null;
+  onSubmitWebhookHeaders?: string | null;
+  onSubmitWebhookFailMessage?: string | null;
   saveToMetadata?: boolean;
   isActive?: boolean;
+  ogTitle?: string | null;
+  ogDescription?: string | null;
+  ogImageUrl?: string | null;
 }
 
 export async function updateForm(
@@ -105,8 +207,16 @@ export async function updateForm(
            fields = ?,
            on_submit_tag_id = ?,
            on_submit_scenario_id = ?,
+           on_submit_message_type = ?,
+           on_submit_message_content = ?,
+           on_submit_webhook_url = ?,
+           on_submit_webhook_headers = ?,
+           on_submit_webhook_fail_message = ?,
            save_to_metadata = ?,
            is_active = ?,
+           og_title = ?,
+           og_description = ?,
+           og_image_url = ?,
            updated_at = ?
        WHERE id = ?`,
     )
@@ -118,10 +228,28 @@ export async function updateForm(
       'onSubmitScenarioId' in input
         ? (input.onSubmitScenarioId ?? null)
         : existing.on_submit_scenario_id,
+      'onSubmitMessageType' in input
+        ? (input.onSubmitMessageType ?? null)
+        : existing.on_submit_message_type,
+      'onSubmitMessageContent' in input
+        ? (input.onSubmitMessageContent ?? null)
+        : existing.on_submit_message_content,
+      'onSubmitWebhookUrl' in input
+        ? (input.onSubmitWebhookUrl ?? null)
+        : existing.on_submit_webhook_url,
+      'onSubmitWebhookHeaders' in input
+        ? (input.onSubmitWebhookHeaders ?? null)
+        : existing.on_submit_webhook_headers,
+      'onSubmitWebhookFailMessage' in input
+        ? (input.onSubmitWebhookFailMessage ?? null)
+        : existing.on_submit_webhook_fail_message,
       'saveToMetadata' in input
         ? (input.saveToMetadata !== false ? 1 : 0)
         : existing.save_to_metadata,
       'isActive' in input ? (input.isActive ? 1 : 0) : existing.is_active,
+      'ogTitle' in input ? (input.ogTitle ?? null) : existing.og_title,
+      'ogDescription' in input ? (input.ogDescription ?? null) : existing.og_description,
+      'ogImageUrl' in input ? (input.ogImageUrl ?? null) : existing.og_image_url,
       now,
       id,
     )
@@ -131,7 +259,13 @@ export async function updateForm(
 }
 
 export async function deleteForm(db: D1Database, id: string): Promise<void> {
-  await db.prepare(`DELETE FROM forms WHERE id = ?`).bind(id).run();
+  // フォームを参照しているウェビナー CTA カードも同時に削除する。宙吊りの
+  // form_id が残ると、放置運用中のオートウェビナーでカードだけ出続けて
+  // 全タップがエラーになる (D1 は FK 未強制)。
+  await db.batch([
+    db.prepare(`DELETE FROM webinar_ctas WHERE form_id = ?`).bind(id),
+    db.prepare(`DELETE FROM forms WHERE id = ?`).bind(id),
+  ]);
 }
 
 // ── Submissions ───────────────────────────────────────────────────────────────
@@ -148,6 +282,27 @@ export async function getFormSubmissions(
     )
     .bind(formId)
     .all<FormSubmission & { friend_name: string | null }>();
+  return result.results;
+}
+
+/** 友だち詳細欄で使う、フォーム名・質問定義つきの最新回答履歴。 */
+export async function getFormSubmissionsByFriend(
+  db: D1Database,
+  friendId: string,
+  limit = 10,
+): Promise<FriendFormSubmission[]> {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 50));
+  const result = await db
+    .prepare(
+      `SELECT fs.*, f.name AS form_name, f.fields AS form_fields
+       FROM form_submissions fs
+       JOIN forms f ON f.id = fs.form_id
+       WHERE fs.friend_id = ?
+       ORDER BY fs.created_at DESC
+       LIMIT ?`,
+    )
+    .bind(friendId, safeLimit)
+    .all<FriendFormSubmission>();
   return result.results;
 }
 

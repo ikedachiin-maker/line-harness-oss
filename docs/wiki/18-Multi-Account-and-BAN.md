@@ -47,7 +47,7 @@ LINE公式アカウントの複数管理、UUID によるクロスアカウン�
 一覧レスポンスではセキュリティのため `channelAccessToken` と `channelSecret` を省略する。
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/line-accounts" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -71,7 +71,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts"
 #### アカウント詳細取得 (シークレット含む)
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts/{id}" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/line-accounts/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -80,7 +80,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts/
 #### アカウント登録
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/line-accounts" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -96,7 +96,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts
 #### アカウント更新
 
 ```bash
-curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts/{id}" \
+curl -X PUT "https://your-worker.your-subdomain.workers.dev/api/line-accounts/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -112,7 +112,7 @@ curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts/
 #### アカウント削除
 
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/line-accounts/{id}" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/line-accounts/{id}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -124,7 +124,7 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/line-accoun
 
 LINE の `line_user_id` はアカウントごとに異なるため、同一ユーザーが複数の公式アカウントを友だち追加しても、デフォルトでは紐付けができない。
 
-LINE Harness では `users` テーブルを中間テーブルとして使用し、`friends.user_id` カラムで友だちをUUIDにリンクする。
+L Harness では `users` テーブルを中間テーブルとして使用し、`friends.user_id` カラムで友だちをUUIDにリンクする。
 
 ### データモデル
 
@@ -143,26 +143,26 @@ friends テーブル:
 
 ```bash
 # 1. ユーザー作成
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/users" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/users" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "displayName": "田中太郎"}'
 
 # 2. 友だちをリンク
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/users/{userId}/link" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/users/{userId}/link" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"friendId": "friend-uuid"}'
 
 # 3. UUID紐付き友だち一覧取得
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/users/{userId}/accounts" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/users/{userId}/accounts" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ### メール/電話でユーザー検索
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/users/match" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/users/match" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com"}'
@@ -210,7 +210,7 @@ Cloudflare Workers の cron トリガー (`*/5 * * * *` = 5分毎) で `checkAcc
 ### ヘルス状態取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/accounts/{lineAccountId}/health" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/accounts/{lineAccountId}/health" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -259,7 +259,7 @@ BAN 検出時に、友だちを新アカウントに移行するための仕組�
 ### 移行開始
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/accounts/{fromAccountId}/migrate" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/accounts/{fromAccountId}/migrate" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"toAccountId": "new-account-uuid"}'
@@ -288,14 +288,14 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/accounts/{fro
 ### 移行一覧取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/accounts/migrations" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/accounts/migrations" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ### 移行詳細取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/accounts/migrations/{migrationId}" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/accounts/migrations/{migrationId}" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 

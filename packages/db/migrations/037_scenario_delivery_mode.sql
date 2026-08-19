@@ -1,0 +1,23 @@
+-- Add delivery_mode to scenarios + schedule columns to scenario_steps.
+--
+-- HISTORICAL NOTE: This migration was originally applied to production D1 (line-crm)
+-- manually on 2026-05-10 via `wrangler d1 execute --env production --remote`,
+-- prior to the PR being merged. The columns already exist in the desired state.
+--
+-- The first auto-deploy after PR #11 merge failed because the GitHub Actions
+-- migration runner saw this file as "unapplied" (no _migrations row) and tried
+-- to re-run the ALTER TABLEs, hitting "duplicate column name: delivery_mode".
+--
+-- This file is now a no-op marker so the migration runner can record it as
+-- applied in the _migrations table without conflict. The original DDL is
+-- preserved below as a comment for reference / fresh-install replay (where
+-- packages/db/schema.sql carries the canonical column definitions).
+--
+-- Original DDL (already applied):
+--   ALTER TABLE scenarios ADD COLUMN delivery_mode TEXT NOT NULL DEFAULT 'relative'
+--     CHECK (delivery_mode IN ('relative', 'elapsed', 'absolute_time'));
+--   ALTER TABLE scenario_steps ADD COLUMN offset_days INTEGER;
+--   ALTER TABLE scenario_steps ADD COLUMN offset_minutes INTEGER;
+--   ALTER TABLE scenario_steps ADD COLUMN delivery_time TEXT;
+
+SELECT 1;

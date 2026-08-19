@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import type { Scenario } from '@line-crm/shared'
+import type { Scenario, DeliveryMode } from '@line-crm/shared'
 
 type ScenarioWithCount = Scenario & { stepCount?: number }
 
@@ -7,6 +7,21 @@ const triggerLabels: Record<string, string> = {
   friend_add: '友だち追加時',
   tag_added: 'タグ付与時',
   manual: '手動',
+}
+
+const deliveryModeStyles: Record<DeliveryMode, { bg: string; text: string; label: string }> = {
+  relative: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Legacy' },
+  elapsed: { bg: 'bg-blue-50', text: 'text-blue-700', label: '経過時間' },
+  absolute_time: { bg: 'bg-amber-50', text: 'text-amber-700', label: '時刻指定' },
+}
+
+function ModeBadge({ mode }: { mode?: DeliveryMode }) {
+  const s = deliveryModeStyles[mode ?? 'relative']
+  return (
+    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${s.bg} ${s.text}`}>
+      {s.label}
+    </span>
+  )
 }
 
 interface ScenarioListProps {
@@ -37,15 +52,29 @@ export default function ScenarioList({ scenarios, onToggleActive, onDelete, load
             >
               {scenario.name}
             </Link>
-            <span
-              className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                scenario.isActive
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              {scenario.isActive ? '有効' : '無効'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {/* lineAccountId === null = global. Label it explicitly so an
+                 account-scoped view can't trick the operator into mutating a
+                 row that fires for every account. */}
+              {scenario.lineAccountId === null && (
+                <span
+                  className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                  title="全アカウントに適用されるシナリオです"
+                >
+                  全アカウント共通
+                </span>
+              )}
+              <ModeBadge mode={scenario.deliveryMode} />
+              <span
+                className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  scenario.isActive
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {scenario.isActive ? '有効' : '無効'}
+              </span>
+            </div>
           </div>
 
           {/* Description */}
@@ -80,7 +109,19 @@ export default function ScenarioList({ scenarios, onToggleActive, onDelete, load
               編集
             </Link>
             <button
-              onClick={() => onToggleActive(scenario.id, scenario.isActive)}
+              onClick={() => {
+                // Globals fire for every account; warn before toggling from an
+                // account-scoped view so it can't be flipped by accident.
+                if (
+                  scenario.lineAccountId === null &&
+                  !confirm(
+                    `「${scenario.name}」は全アカウント共通のシナリオです。${scenario.isActive ? '無効化' : '有効化'}するとすべてのアカウントに影響します。続行しますか?`,
+                  )
+                ) {
+                  return
+                }
+                onToggleActive(scenario.id, scenario.isActive)
+              }}
               disabled={loading}
               className="flex-1 text-xs font-medium text-gray-600 hover:text-gray-900 py-1 min-h-[44px] flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40"
             >
@@ -88,7 +129,11 @@ export default function ScenarioList({ scenarios, onToggleActive, onDelete, load
             </button>
             <button
               onClick={() => {
-                if (confirm(`「${scenario.name}」を削除してもよいですか？`)) {
+                const isGlobal = scenario.lineAccountId === null
+                const message = isGlobal
+                  ? `「${scenario.name}」は全アカウント共通のシナリオです。削除するとすべてのアカウントから消えます。本当に削除しますか?`
+                  : `「${scenario.name}」を削除してもよいですか？`
+                if (confirm(message)) {
                   onDelete(scenario.id)
                 }
               }}

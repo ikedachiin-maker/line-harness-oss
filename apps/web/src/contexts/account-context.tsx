@@ -14,6 +14,10 @@ export interface AccountWithStats {
   pictureUrl?: string
   basicId?: string
   isActive: boolean
+  country: string | null
+  role: string | null
+  displayOrder: number
+  liffId?: string | null
   stats?: {
     friendCount: number
     activeScenarios: number

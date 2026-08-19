@@ -26,10 +26,53 @@ export interface Friend {
    * D1はBOOLEANをINTEGER(0/1)で格納するが、Cloudflare D1クライアントはJavaScript boolean に変換して返す
    */
   isFollowing: boolean;
+  /** メタデータ (フォーム回答, 業種等). serializeFriend が JSON.parse 済 */
+  metadata?: Record<string, unknown>;
+  /** 流入経路 ref コード (?ref=… で渡されたトラッキング識別子). 設定無しなら null */
+  refCode?: string | null;
+  /** 内部 user_id (UUIDv4). cross-account dedup 用 */
+  userId?: string | null;
+  /**
+   * 流入元キャンペーン名 (LP/トラッキングリンク). 友だち追加時に attribute、
+   * 以後不変. 一覧 API の chat-status hydration が有効なときのみ付与.
+   */
+  firstTrackedLinkName?: string | null;
+  /**
+   * チャット状態. /chats 画面の status と整合.
+   *   unread       未対応 (incoming あり、operator が読んでない)
+   *   in_progress  対応中 (operator が見て、まだ閉じてない)
+   *   resolved     対応済み (デフォルト. chats 行がない friend もここ)
+   * 一覧 API の chat-status hydration が有効なときのみ付与.
+   */
+  chatStatus?: 'unread' | 'in_progress' | 'resolved';
   /** 作成日時 (ISO 8601) */
   createdAt: string;
   /** 更新日時 (ISO 8601) */
   updatedAt: string;
+}
+
+/**
+ * 友だち一覧のチャット状況フィールド (`?includeChatStatus=true` で付与).
+ * L-step 風の友だちリスト UI で「未対応 / シナリオ / 直近受信メッセージ」を
+ * 表示するため、サーバー側で 3 本の batched クエリで集計して返す。
+ */
+export interface FriendChatStatus {
+  /** 直近の受信メッセージ. ない場合は null */
+  latestIncomingMessage: {
+    content: string;
+    messageType: string;
+    createdAt: string;
+  } | null;
+  /** 直近の送信メッセージ時刻. なければ null */
+  latestOutgoingAt: string | null;
+  /** 進行中シナリオ. 複数あれば最新 (started_at DESC). なければ null */
+  activeScenario: { name: string; status: string } | null;
+  /**
+   * "対応済み" フラグ.
+   * true = 受信メッセージなし or 受信より新しい送信メッセージあり (= 既に対応済).
+   * false = 直近の活動が受信メッセージ (= 未対応).
+   */
+  handled: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -42,8 +85,18 @@ export interface Tag {
   name: string;
   /** 表示色 (HEX: #RRGGBB) */
   color: string;
+  /** このタグを初めて獲得したときに付与するマイル */
+  mileageReward?: number;
+  /** 紹介された友だちがこのタグを獲得したとき、紹介者へ付与するマイル */
+  referralMileageReward?: number;
+  /** 今後の行動マイル倍率。10000 = 1.0倍、null = 倍率タグとして使わない */
+  mileageMultiplierBps?: number | null;
+  /** 複数の倍率タグがある場合の優先順位（大きい値を採用） */
+  mileageMultiplierPriority?: number;
   /** 作成日時 (ISO 8601) */
   createdAt: string;
+  /** このタグが付与されている友だち数 (GET /api/tags のみ付与) */
+  friendCount?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -65,6 +118,14 @@ export interface FriendTag {
 /** シナリオのトリガー種別 */
 export type ScenarioTriggerType = "friend_add" | "tag_added" | "manual";
 
+/**
+ * シナリオの配信モード
+ * - relative: 前ステップからの相対遅延 (delayMinutes)
+ * - elapsed: 購読開始からの経過時間 (offsetDays + offsetMinutes)
+ * - absolute_time: 購読開始から N 日後の HH:MM JST (offsetDays + deliveryTime)
+ */
+export type DeliveryMode = "relative" | "elapsed" | "absolute_time";
+
 export interface Scenario {
   /** 主キー (UUIDv4) */
   id: string;
@@ -76,8 +137,12 @@ export interface Scenario {
   triggerType: ScenarioTriggerType;
   /** トリガーとなるタグID (triggerType が 'tag_added' の場合のみ使用) */
   triggerTagId: string | null;
+  /** 紐づく LINE アカウント ID。null = 全アカウント共通として発火 */
+  lineAccountId: string | null;
   /** 有効/無効フラグ */
   isActive: boolean;
+  /** 配信モード (作成後の変更不可)。レスポンスでは常にセット、Create リクエストでは省略可 (default: 'relative') */
+  deliveryMode?: DeliveryMode;
   /** 作成日時 (ISO 8601) */
   createdAt: string;
   /** 更新日時 (ISO 8601) */
@@ -98,14 +163,53 @@ export interface ScenarioStep {
   scenarioId: string;
   /** ステップ順序 (1始まり) */
   stepOrder: number;
-  /** 前のステップからの遅延時間 (分) */
+  /** 前のステップからの遅延時間 (分) — relative mode のみ意味あり、他モードは 0 */
   delayMinutes: number;
+  /** 購読開始からの経過日数 — elapsed / absolute_time mode 用 */
+  offsetDays?: number | null;
+  /** 経過日数に追加する分 (0..1439) — elapsed mode 用 */
+  offsetMinutes?: number | null;
+  /** 配信時刻 "HH:MM" (JST) — absolute_time mode 用 */
+  deliveryTime?: string | null;
+  /** 参照するテンプレート ID (null = 直接入力モード) */
+  templateId?: string | null;
+  /** このステップ到達時に付与するタグ ID */
+  onReachTagId?: string | null;
   /** メッセージ種別 */
   messageType: MessageType;
   /** メッセージ内容 (テキスト or JSONシリアライズ済みFlexメッセージ等) */
   messageContent: string;
   /** 作成日時 (ISO 8601) */
   createdAt: string;
+}
+
+/** シナリオ到達率ダッシュボード */
+export interface ScenarioStats {
+  enrolledTotal: number;
+  activeNow: number;
+  completed: number;
+  paused: number;
+  steps: Array<{
+    stepOrder: number;
+    reachedCount: number;
+    /** 0..1 */
+    reachRate: number;
+  }>;
+}
+
+/** テンプレ使用箇所一覧 */
+export interface TemplateUsages {
+  autoReplies: Array<{
+    id: string;
+    keyword: string;
+    lineAccountId: string | null;
+  }>;
+  scenarioSteps: Array<{
+    scenarioId: string;
+    scenarioName: string;
+    stepId: string;
+    stepOrder: number;
+  }>;
 }
 
 // -----------------------------------------------------------------------------
@@ -139,7 +243,7 @@ export interface FriendScenario {
 // -----------------------------------------------------------------------------
 
 /** 配信対象種別 */
-export type BroadcastTargetType = "all" | "tag";
+export type BroadcastTargetType = "all" | "tag" | "segment" | "multi-account-dedup";
 
 /** 配信ステータス */
 export type BroadcastStatus = "draft" | "scheduled" | "sending" | "sent";
@@ -274,20 +378,102 @@ export interface User {
 export interface LineAccount {
   /** 主キー (UUIDv4) */
   id: string;
-  /** LINE Channel ID */
+  /** LINE Channel ID (Messaging API) */
   channelId: string;
   /** アカウント名 */
   name: string;
-  /** Channel Access Token */
+  /** Channel Access Token (Messaging API). list responses では省略される. */
   channelAccessToken: string;
-  /** Channel Secret */
+  /** Channel Secret (Messaging API). list responses では省略される. */
   channelSecret: string;
+  /** LINE Login Channel ID. 友だち追加 OAuth 導線で使う. 未設定なら null. */
+  loginChannelId: string | null;
+  /** LINE Login Channel Secret. list responses では省略される. */
+  loginChannelSecret: string | null;
+  /** LIFF ID. このアカ向けの LIFF page を開くときに `?liffId=` で識別する. */
+  liffId: string | null;
   /** 有効/無効 */
   isActive: boolean;
   /** 作成日時 (ISO 8601) */
   createdAt: string;
   /** 更新日時 (ISO 8601) */
   updatedAt: string;
+  /** 自由文字列の国/地域名 (例: '日本', 'Japan'). UI で client-side lookup table から国旗 emoji を引く. */
+  country: string | null;
+  /** 自由文字列の役割タグ (例: '本店', 'プロモ'). UI 表示専用、ロジック非依存. */
+  role: string | null;
+  /** サイドバーアカ切替および /accounts ページの並び順 (drag-drop で更新). */
+  displayOrder: number;
+  /** OGP: og:site_name。空欄時は name がフォールバックとして使われる。 */
+  ogSiteName: string | null;
+  /** OGP: アカウント全体のデフォルト og:description。個別レコードで未設定時に使用。 */
+  ogDefaultDescription: string | null;
+  /** OGP: アカウント全体のデフォルト og:image。個別レコードで未設定時に使用。 */
+  ogDefaultImageUrl: string | null;
+}
+
+// -----------------------------------------------------------------------------
+// Traffic Pool — マルチアカウント分散先
+// -----------------------------------------------------------------------------
+
+export interface TrafficPool {
+  id: string;
+  slug: string;
+  name: string;
+  activeAccountId: string | null;
+  accountName?: string | null;
+  liffId?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PoolAccount {
+  id: string;
+  poolId: string;
+  lineAccountId: string;
+  accountName?: string | null;
+  liffId?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// -----------------------------------------------------------------------------
+// Entry Route (リファラルリンク) — 流入経路 1 件
+// -----------------------------------------------------------------------------
+
+export interface EntryRoute {
+  id: string;
+  refCode: string;
+  name: string;
+  tagId: string | null;
+  scenarioId: string | null;
+  redirectUrl: string | null;
+  poolId: string | null;
+  introTemplateId: string | null;
+  runAccountFriendAddScenarios: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEntryRouteInput {
+  refCode: string;
+  name: string;
+  tagId?: string | null;
+  scenarioId?: string | null;
+  redirectUrl?: string | null;
+  poolId?: string | null;
+  introTemplateId?: string | null;
+  runAccountFriendAddScenarios?: boolean;
+  isActive?: boolean;
+}
+
+export interface EntryRouteFunnel {
+  click_count: number;
+  friend_add_count: number;
+  form_submission_count: number;
+  cv_count: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -397,10 +583,18 @@ export interface IncomingWebhook {
   id: string;
   name: string;
   sourceType: string;
-  secret: string | null;
+  // The raw secret is never exposed on list/get/update responses. Callers can
+  // only know whether one is currently configured.
+  hasSecret: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// Returned ONLY from POST /api/webhooks/incoming so the operator can copy the
+// generated secret. Subsequent GETs use IncomingWebhook (no `secret`).
+export interface IncomingWebhookCreated extends Omit<IncomingWebhook, 'hasSecret' | 'updatedAt'> {
+  secret: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -412,10 +606,15 @@ export interface OutgoingWebhook {
   name: string;
   url: string;
   eventTypes: string[];
-  secret: string | null;
+  hasSecret: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// Returned ONLY from POST /api/webhooks/outgoing.
+export interface OutgoingWebhookCreated extends Omit<OutgoingWebhook, 'hasSecret' | 'updatedAt'> {
+  secret: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -620,6 +819,7 @@ export type AutomationEventType =
   | "score_threshold"
   | "cv_fire"
   | "message_received"
+  | "postback_received"
   | "calendar_booked";
 
 export interface AutomationAction {
@@ -636,6 +836,10 @@ export interface Automation {
   actions: AutomationAction[];
   isActive: boolean;
   priority: number;
+  // null = global automation (fires for every account, per event-bus.ts:149).
+  // UUID = bound to that line_account_id. Surfaced so account-scoped UIs can
+  // distinguish a rule that affects every account from one they own.
+  lineAccountId: string | null;
   createdAt: string;
   updatedAt: string;
 }

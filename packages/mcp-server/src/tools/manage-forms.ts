@@ -14,10 +14,15 @@ export function registerManageForms(server: McpServer): void {
       fields: z.string().optional().describe("JSON string of form fields array (for update)"),
       onSubmitTagId: z.string().nullable().optional().describe("Tag to add on submit (for update)"),
       onSubmitScenarioId: z.string().nullable().optional().describe("Scenario to enroll on submit (for update)"),
+      onSubmitMessageType: z.enum(["text", "flex"]).nullable().optional().describe("Custom message type to send after form submission (for update). Supports template variables: {{name}}, {{auth_url:CHANNEL_ID}}"),
+      onSubmitMessageContent: z.string().nullable().optional().describe("Custom message content to send after form submission (for update). If set, replaces the default confirmation Flex."),
       saveToMetadata: z.boolean().optional().describe("Save responses to friend metadata (for update)"),
       isActive: z.boolean().optional().describe("Active status (for update)"),
+      ogTitle: z.string().nullable().optional().describe("OGP title override for the form's LIFF page preview, or null to clear (for update)"),
+      ogDescription: z.string().nullable().optional().describe("OGP description override for the form's LIFF page preview, or null to clear (for update)"),
+      ogImageUrl: z.string().nullable().optional().describe("OGP image URL override for the form's LIFF page preview, or null to clear (for update)"),
     },
-    async ({ action, formId, name, description, fields, onSubmitTagId, onSubmitScenarioId, saveToMetadata, isActive }) => {
+    async ({ action, formId, name, description, fields, onSubmitTagId, onSubmitScenarioId, onSubmitMessageType, onSubmitMessageContent, saveToMetadata, isActive, ogTitle, ogDescription, ogImageUrl }) => {
       try {
         const client = getClient();
         if (action === "list") {
@@ -36,8 +41,13 @@ export function registerManageForms(server: McpServer): void {
           if (fields !== undefined) input.fields = JSON.parse(fields);
           if (onSubmitTagId !== undefined) input.onSubmitTagId = onSubmitTagId;
           if (onSubmitScenarioId !== undefined) input.onSubmitScenarioId = onSubmitScenarioId;
+          if (onSubmitMessageType !== undefined) input.onSubmitMessageType = onSubmitMessageType;
+          if (onSubmitMessageContent !== undefined) input.onSubmitMessageContent = onSubmitMessageContent;
           if (saveToMetadata !== undefined) input.saveToMetadata = saveToMetadata;
           if (isActive !== undefined) input.isActive = isActive;
+          if (ogTitle !== undefined) input.ogTitle = ogTitle;
+          if (ogDescription !== undefined) input.ogDescription = ogDescription;
+          if (ogImageUrl !== undefined) input.ogImageUrl = ogImageUrl;
           const form = await client.forms.update(formId, input);
           return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, form }, null, 2) }] };
         }

@@ -4,6 +4,18 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import Header from '@/components/layout/header'
 import CcPromptButton from '@/components/cc-prompt-button'
+import TestRecipientsSetting from '@/components/accounts/test-recipients-setting'
+import AccountSettingsSection from '@/components/accounts/account-settings-section'
+import ReorderMode from '@/components/accounts/reorder-mode'
+import {
+  AccountFormSections,
+  emptyAccountFormState,
+  type AccountFormState,
+} from '@/components/accounts/account-form-fields'
+import AccountSetupUrls from '@/components/accounts/account-setup-urls'
+import AccountEditModal from '@/components/accounts/account-edit-modal'
+import LinkBaseUrlSetting from '@/components/accounts/link-base-url-setting'
+import FollowerImportButton from '@/components/accounts/follower-import-button'
 
 interface LineAccountListItem {
   id: string
@@ -13,6 +25,8 @@ interface LineAccountListItem {
   pictureUrl: string | null
   basicId: string | null
   isActive: boolean
+  loginChannelId: string | null
+  liffId: string | null
   createdAt: string
   updatedAt: string
   stats: {
@@ -20,6 +34,9 @@ interface LineAccountListItem {
     activeScenarios: number
     messagesThisMonth: number
   }
+  ogSiteName: string | null
+  ogDefaultDescription: string | null
+  ogDefaultImageUrl: string | null
 }
 
 const ccPrompts = [
@@ -46,7 +63,12 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ channelId: '', name: '', channelAccessToken: '', channelSecret: '' })
+  const [showReorder, setShowReorder] = useState(false)
+  const [editing, setEditing] = useState<LineAccountListItem | null>(null)
+  const [form, setForm] = useState<AccountFormState>(emptyAccountFormState)
+  const [createError, setCreateError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [justCreated, setJustCreated] = useState<{ liffId: string | null } | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -66,15 +88,43 @@ export default function AccountsPage() {
 
   useEffect(() => { load() }, [])
 
+  const updateForm = (partial: Partial<AccountFormState>) =>
+    setForm((s) => ({ ...s, ...partial }))
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.channelId || !form.name || !form.channelAccessToken || !form.channelSecret) return
+    setCreateError('')
+    if (!form.channelId || !form.name || !form.channelAccessToken || !form.channelSecret) {
+      setCreateError('Messaging API の必須項目を入力してください')
+      return
+    }
+    setSubmitting(true)
     try {
-      await api.lineAccounts.create(form)
-      setForm({ channelId: '', name: '', channelAccessToken: '', channelSecret: '' })
-      setShowCreate(false)
-      load()
-    } catch {}
+      const res = await api.lineAccounts.create({
+        channelId: form.channelId.trim(),
+        name: form.name.trim(),
+        channelAccessToken: form.channelAccessToken.trim(),
+        channelSecret: form.channelSecret.trim(),
+        loginChannelId: form.loginChannelId.trim() || null,
+        loginChannelSecret: form.loginChannelSecret.trim() || null,
+        liffId: form.liffId.trim() || null,
+        ogSiteName: form.ogSiteName?.trim() || null,
+        ogDefaultImageUrl: form.ogDefaultImageUrl?.trim() || null,
+        ogDefaultDescription: form.ogDefaultDescription?.trim() || null,
+      })
+      if (res.success) {
+        setJustCreated({ liffId: form.liffId.trim() || null })
+        setForm(emptyAccountFormState)
+        setShowCreate(false)
+        load()
+      } else {
+        setCreateError(res.error || '登録に失敗しました')
+      }
+    } catch {
+      setCreateError('登録に失敗しました')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -94,13 +144,28 @@ export default function AccountsPage() {
         title="LINEアカウント管理"
         description="マルチアカウント設定"
         action={
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="px-4 py-2 rounded-lg text-white text-sm font-medium"
-            style={{ backgroundColor: '#06C755' }}
-          >
-            {showCreate ? 'キャンセル' : '+ アカウント追加'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowReorder(true)}
+              className="px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 hover:bg-gray-50"
+            >
+              並び替えモード
+            </button>
+            <button
+              onClick={() => {
+                const next = !showCreate
+                setShowCreate(next)
+                if (!next) {
+                  setForm(emptyAccountFormState)
+                  setCreateError('')
+                }
+              }}
+              className="px-4 py-2 rounded-lg text-white text-sm font-medium"
+              style={{ backgroundColor: '#06C755' }}
+            >
+              {showCreate ? 'キャンセル' : '+ アカウント追加'}
+            </button>
+          </div>
         }
       />
 
@@ -110,56 +175,60 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {justCreated && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm font-semibold text-green-800 mb-2">
+            ✓ アカウントを登録しました
+          </p>
+          <p className="text-xs text-green-700 mb-3">
+            次に LINE Developers Console で以下の URL を貼り付けてください。
+          </p>
+          <AccountSetupUrls liffId={justCreated.liffId} heading="登録すべき URL" />
+          <button
+            onClick={() => setJustCreated(null)}
+            className="mt-3 text-xs text-green-700 underline"
+          >
+            閉じる
+          </button>
+        </div>
+      )}
+
       {showCreate && (
-        <form onSubmit={handleCreate} className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">アカウント名</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                placeholder="メインアカウント"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Channel ID</label>
-              <input
-                value={form.channelId}
-                onChange={(e) => setForm({ ...form, channelId: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                placeholder="123456789"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Channel Access Token</label>
-              <input
-                type="password"
-                value={form.channelAccessToken}
-                onChange={(e) => setForm({ ...form, channelAccessToken: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Channel Secret</label>
-              <input
-                type="password"
-                value={form.channelSecret}
-                onChange={(e) => setForm({ ...form, channelSecret: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                required
-              />
-            </div>
+        <form onSubmit={handleCreate} className="bg-white rounded-lg border border-gray-200 p-6 mb-6 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              アカウント名 <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.name}
+              onChange={(e) => updateForm({ name: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              placeholder="メインアカウント"
+              required
+            />
           </div>
+
+          <AccountFormSections
+            state={form}
+            update={updateForm}
+            showMessagingRequired={true}
+          />
+
+          <AccountSetupUrls liffId={form.liffId.trim() || null} />
+
+          {createError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
+              {createError}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="mt-4 px-4 py-2 rounded-lg text-white text-sm font-medium"
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50"
             style={{ backgroundColor: '#06C755' }}
           >
-            登録
+            {submitting ? '登録中...' : '登録'}
           </button>
         </form>
       )}
@@ -219,22 +288,94 @@ export default function AccountsPage() {
                   <p className="text-xs text-gray-400">今月送信</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
+
+              {/* Login/LIFF status badges — at-a-glance signal that an account
+                  is fully wired. Important because SQL-only setup historically
+                  left rows half-configured (Login/LIFF blank). */}
+              <div className="flex gap-2 mb-3 text-[11px]">
+                <span
+                  className={`px-2 py-0.5 rounded-full ${
+                    account.loginChannelId
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  Login: {account.loginChannelId ? '設定済' : '未設定'}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full ${
+                    account.liffId
+                      ? 'bg-purple-50 text-purple-700'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  LIFF: {account.liffId ? '設定済' : '未設定'}
+                </span>
+              </div>
+
+              <AccountSettingsSection
+                accountId={account.id}
+                initialCountry={(account as { country?: string | null }).country ?? null}
+                initialRole={(account as { role?: string | null }).role ?? null}
+                onUpdated={load}
+              />
+              <TestRecipientsSetting accountId={account.id} />
+              <FollowerImportButton accountId={account.id} onImported={load} />
+
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <p className="text-xs text-gray-400">
                   登録: {new Date(account.createdAt).toLocaleDateString('ja-JP')}
                 </p>
-                <button
-                  onClick={() => handleDelete(account.id)}
-                  className="text-red-500 hover:text-red-700 text-xs"
-                >
-                  削除
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditing(account)}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    編集
+                  </button>
+                  <button
+                    onClick={() => handleDelete(account.id)}
+                    className="text-red-500 hover:text-red-700 text-xs"
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">グローバル設定</h2>
+        <LinkBaseUrlSetting />
+      </div>
       <CcPromptButton prompts={ccPrompts} />
+      {showReorder && (
+        <ReorderMode
+          accounts={accounts.map((a) => ({
+            id: a.id,
+            name: a.name,
+            displayName: a.displayName,
+            country: (a as { country?: string | null }).country ?? null,
+          }))}
+          onClose={() => setShowReorder(false)}
+          onSaved={load}
+        />
+      )}
+      {editing && (
+        <AccountEditModal
+          accountId={editing.id}
+          initialName={editing.name}
+          initialChannelId={editing.channelId}
+          initialLoginChannelId={editing.loginChannelId}
+          initialLiffId={editing.liffId}
+          initialOgSiteName={editing.ogSiteName}
+          initialOgDefaultDescription={editing.ogDefaultDescription}
+          initialOgDefaultImageUrl={editing.ogDefaultImageUrl}
+          onClose={() => setEditing(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   )
 }

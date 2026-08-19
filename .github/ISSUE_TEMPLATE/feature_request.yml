@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an improvement
+title: "Feature: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. L Harness prioritizes security, delivery safety, setup reliability, and broadly useful CRM workflows.
+
+        Large or industry-specific ideas may be redirected to plugins or split into smaller issues.
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What workflow or user problem should this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected behavior or interface.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional context, prior art, or workarounds.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Expected scope
+      description: Pick the closest scope.
+      options:
+        - "Small core improvement"
+        - "Large core feature"
+        - "Plugin / integration candidate"
+        - "Documentation / example"
+        - "Not sure"
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety considerations
+      options:
+        - label: This feature does not require posting secrets, tokens, customer data, or private URLs publicly.
+          required: true
+        - label: I understand that `accepted` means direction is reasonable, not an implementation promise.

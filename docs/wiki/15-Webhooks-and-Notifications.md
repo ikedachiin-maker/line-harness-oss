@@ -2,11 +2,11 @@
 
 ## 概要
 
-LINE Harnessは3種類のWebhookメカニズムと通知システムを提供する:
+L Harnessは3種類のWebhookメカニズムと通知システムを提供する:
 
-1. **LINE Webhook（受信）** - LINE PlatformからLINE Harnessへのイベント通知
-2. **受信Webhook (Incoming)** - 外部システムからLINE Harnessへのデータ受信
-3. **送信Webhook (Outgoing)** - LINE Harnessから外部システムへのイベント通知
+1. **LINE Webhook（受信）** - LINE PlatformからL Harnessへのイベント通知
+2. **受信Webhook (Incoming)** - 外部システムからL Harnessへのデータ受信
+3. **送信Webhook (Outgoing)** - L Harnessから外部システムへのイベント通知
 4. **通知ルール** - イベント発生時の管理者向け通知
 
 ## 1. LINE Webhookイベント処理
@@ -51,7 +51,7 @@ const valid = await verifySignature(channelSecret, rawBody, signature);
 
 ## 2. 受信Webhook (Incoming Webhooks)
 
-外部システム（Stripe、Google Calendar、カスタムシステム等）からLINE Harnessにデータを送信するための仕組み。
+外部システム（Stripe、Google Calendar、カスタムシステム等）からL Harnessにデータを送信するための仕組み。
 
 ### データモデル
 
@@ -86,7 +86,7 @@ POST /api/webhooks/incoming/:id/receive
 #### 受信Webhook一覧取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -112,7 +112,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incom
 #### 受信Webhook作成
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -140,7 +140,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/inco
 #### 受信Webhook更新
 
 ```bash
-curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming/WH_UUID" \
+curl -X PUT "https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming/WH_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "isActive": false }'
@@ -149,7 +149,7 @@ curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incom
 #### 受信Webhook削除
 
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming/WH_UUID" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming/WH_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -157,7 +157,7 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/in
 
 ```bash
 # Stripeからの決済通知を受信（認証不要）
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming/WH_UUID/receive" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming/WH_UUID/receive" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "payment_intent.succeeded",
@@ -181,7 +181,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/inco
 
 ## 3. 送信Webhook (Outgoing Webhooks)
 
-LINE Harness内部でイベントが発生した時に、外部URLにPOSTリクエストを送信する仕組み。Slack通知、外部CRM連携、カスタム処理などに使用。
+L Harness内部でイベントが発生した時に、外部URLにPOSTリクエストを送信する仕組み。Slack通知、外部CRM連携、カスタム処理などに使用。
 
 ### データモデル
 
@@ -249,7 +249,7 @@ const isValid = expectedSignature === request.headers['x-webhook-signature'];
 #### 送信Webhook一覧取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgoing" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/webhooks/outgoing" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -276,7 +276,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgo
 #### 送信Webhook作成
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgoing" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/webhooks/outgoing" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -306,7 +306,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outg
 #### 送信Webhook更新
 
 ```bash
-curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgoing/OUT_WH_UUID" \
+curl -X PUT "https://your-worker.your-subdomain.workers.dev/api/webhooks/outgoing/OUT_WH_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -318,7 +318,7 @@ curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgo
 #### 送信Webhook削除
 
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/outgoing/OUT_WH_UUID" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/webhooks/outgoing/OUT_WH_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -377,7 +377,7 @@ CREATE INDEX idx_notifications_created ON notifications (created_at);
 #### 通知ルール一覧取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/rules" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/notifications/rules" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -404,7 +404,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/
 #### 通知ルール作成
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/rules" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/notifications/rules" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -433,7 +433,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/notifications
 #### 通知ルール更新
 
 ```bash
-curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/rules/RULE_UUID" \
+curl -X PUT "https://your-worker.your-subdomain.workers.dev/api/notifications/rules/RULE_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "channels": ["dashboard"], "isActive": false }'
@@ -442,7 +442,7 @@ curl -X PUT "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/
 #### 通知ルール削除
 
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/notifications/rules/RULE_UUID" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/notifications/rules/RULE_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -450,11 +450,11 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/notificatio
 
 ```bash
 # 全通知
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/notifications" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/notifications" \
   -H "Authorization: Bearer YOUR_API_KEY"
 
 # ステータスでフィルタ
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/notifications?status=pending&limit=50" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/notifications?status=pending&limit=50" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -483,7 +483,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/notifications?
 
 ## 活用パターン
 
-### パターン: Stripe → LINE Harness → Slack通知 + 顧客タグ付け
+### パターン: Stripe → L Harness → Slack通知 + 顧客タグ付け
 
 ```bash
 # 1. 受信Webhook作成（Stripe用）
@@ -502,7 +502,7 @@ curl -X POST ".../api/automations" \
   -d '{"name":"Stripe決済完了","eventType":"incoming_webhook.stripe","actions":[{"type":"add_tag","params":{"tagId":"PAID_TAG"}}]}'
 
 # 4. Stripeのwebhook URLに設定:
-# https://line-crm-worker.line-crm-api.workers.dev/api/webhooks/incoming/{IN_WH}/receive
+# https://your-worker.your-subdomain.workers.dev/api/webhooks/incoming/{IN_WH}/receive
 ```
 
 ## ソースコード参照

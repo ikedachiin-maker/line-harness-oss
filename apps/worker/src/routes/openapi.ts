@@ -85,8 +85,11 @@ const spec = {
           title: { type: 'string' },
           messageType: { type: 'string', enum: ['text', 'image', 'flex'] },
           messageContent: { type: 'string' },
-          targetType: { type: 'string', enum: ['all', 'tag'] },
+          targetType: { type: 'string', enum: ['all', 'tag', 'segment', 'multi-account-dedup'] },
           targetTagId: { type: 'string', nullable: true },
+          accountIds: { type: 'array', items: { type: 'string' }, nullable: true },
+          dedupPriority: { type: 'array', items: { type: 'string' }, nullable: true },
+          failedAccountIds: { type: 'array', items: { type: 'string' }, nullable: true },
           status: { type: 'string', enum: ['draft', 'scheduled', 'sending', 'sent'] },
           scheduledAt: { type: 'string', nullable: true },
           sentAt: { type: 'string', nullable: true },
@@ -114,6 +117,9 @@ const spec = {
           channelId: { type: 'string' },
           name: { type: 'string' },
           isActive: { type: 'boolean' },
+          country: { type: 'string', nullable: true },
+          role: { type: 'string', nullable: true },
+          displayOrder: { type: 'integer' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
@@ -303,7 +309,7 @@ const spec = {
       post: {
         tags: ['Broadcasts'],
         summary: '配信作成',
-        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { title: { type: 'string' }, messageType: { type: 'string' }, messageContent: { type: 'string' }, targetType: { type: 'string' }, targetTagId: { type: 'string' }, scheduledAt: { type: 'string' } }, required: ['title', 'messageType', 'messageContent', 'targetType'] } } } },
+        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { title: { type: 'string' }, messageType: { type: 'string' }, messageContent: { type: 'string' }, targetType: { type: 'string' }, targetTagId: { type: 'string' }, accountIds: { type: 'array', items: { type: 'string' } }, dedupPriority: { type: 'array', items: { type: 'string' } }, scheduledAt: { type: 'string' } }, required: ['title', 'messageType', 'messageContent', 'targetType'] } } } },
         responses: { '201': { description: 'Broadcast created' } },
       },
     },
@@ -323,6 +329,27 @@ const spec = {
         summary: '即時配信',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'Sent' } },
+      },
+    },
+    '/api/broadcasts/dedup-preview': {
+      post: {
+        tags: ['Broadcasts'],
+        summary: '複数アカ重複除外の事前プレビュー',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  accountIds: { type: 'array', items: { type: 'string' } },
+                  dedupPriority: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['accountIds', 'dedupPriority'],
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'Preview computed (totalSelected, uniqueRecipients, reduction, perAccount)' } },
       },
     },
     // ── Users (UUID Cross-Account) ──────────────────────────────────────────
@@ -375,8 +402,59 @@ const spec = {
         responses: { '201': { description: 'Account created' } },
       },
     },
+    '/api/line-accounts/order': {
+      patch: {
+        tags: ['LINE Accounts'],
+        summary: 'アカウント表示順を一括更新 (drag-drop reorder)',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  ordered: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        displayOrder: { type: 'integer' },
+                      },
+                      required: ['id', 'displayOrder'],
+                    },
+                  },
+                },
+                required: ['ordered'],
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'Order updated' } },
+      },
+    },
     '/api/line-accounts/{id}': {
       get: { tags: ['LINE Accounts'], summary: 'LINEアカウント詳細', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Account' } } },
+      patch: {
+        tags: ['LINE Accounts'],
+        summary: 'LINEアカウント部分更新',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  isActive: { type: 'boolean' },
+                  country: { type: 'string', nullable: true },
+                  role: { type: 'string', nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: { '200': { description: 'Updated' } },
+      },
       put: { tags: ['LINE Accounts'], summary: 'LINEアカウント更新', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Updated' } } },
       delete: { tags: ['LINE Accounts'], summary: 'LINEアカウント削除', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Deleted' } } },
     },

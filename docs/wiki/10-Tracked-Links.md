@@ -52,6 +52,15 @@ CREATE TABLE tracked_links (
 );
 ```
 
+後続マイグレーションで追加された主なカラム:
+
+| カラム | 追加 | 用途 |
+|--------|------|------|
+| `intro_template_id` / `reward_template_id` | 020/021 | キャンペーン intro / 特典メッセージ |
+| `og_title` / `og_description` / `og_image_url` | 042 | リンクプレビュー OGP 上書き |
+| `line_account_id` | 046 | リンク所有アカウント（/t の LIFF 解決・OGP に使用） |
+| `short_code` | 049 | 7文字ショートコード（短縮ドメイン用、UNIQUE） |
+
 ### link_clicks テーブル
 
 ```sql
@@ -71,11 +80,13 @@ CREATE INDEX idx_link_clicks_friend ON link_clicks (friend_id);
 ### トラッキングURL形式
 
 ```
-https://line-crm-worker.line-crm-api.workers.dev/t/{linkId}?f={friendId}
+https://<your-worker>/t/{code}?f={friendId}
+https://go.example.com/t/{code}          ← 短縮ドメイン設定時（v0.18.0+）
 ```
 
-- `linkId`: tracked_linksのID（UUID）
+- `code`: 7文字のショートコード（`short_code`、v0.18.0以降の新規リンク）または tracked_links の ID（UUID、旧リンク）。`/t/:linkId` は両方を解決する
 - `f`: friendsテーブルのID（オプション。メッセージ内で動的に埋め込む）
+- 過去に配信済みの UUID 形式 URL は短縮ドメイン設定後もそのまま有効
 
 ### 処理フロー
 
@@ -97,6 +108,55 @@ https://line-crm-worker.line-crm-api.workers.dev/t/{linkId}?f={friendId}
 | 匿名 | なし | `friend_id=NULL` で記録 | なし | なし |
 | 友だち特定 | あり | `friend_id` 付きで記録 | 実行 | 実行 |
 
+## 短縮ドメイン設定（メッセージ内リンク）
+
+自動短縮で生成される `/t/` リンクを、Worker のデフォルト URL ではなく独自の短いドメインで配信できる。
+
+```
+未設定:  https://<your-worker>.workers.dev/t/<36文字UUID>   （約90文字）
+設定後:  https://go.example.com/t/Ab3xY9k                   （約35文字）
+```
+
+### 設定方法
+
+管理画面 → アカウント管理 → 「メッセージ内リンクの短縮ドメイン」に `https://go.example.com` を入力して保存。API では:
+
+```
+PUT /api/account-settings/tracked-link-base-url
+{ "value": "https://go.example.com" }
+```
+
+グローバル設定（`account_settings` の `tracked_link_base_url`、accountId=`'__global__'`）。空文字で解除（Worker URL に戻る）。
+
+**アフィリリンク用の `link_base_url` とは別の設定**。既存環境がアフィリ用に設定しているドメインは全パスを `/r/` に転送しているため、同じ値を流用すると /t リンクが壊れる。同じドメインを両方に使いたい場合は下のパターンAで Redirect Rule を追加する。
+
+### ドメイン側の設定パターン
+
+ドメインの `/t/*` を**パスそのまま** Worker に届ける必要がある。
+
+**パターンA: アフィリリンクと同一ドメインで同居**
+
+Cloudflare Redirect Rules を2本、この順序で設定（ゾーンと Worker のアカウントが違ってもよい）:
+
+| 順序 | If (条件) | Then (転送先) | 備考 |
+|------|-----------|---------------|------|
+| 1 | URI Path starts with `/t/` | `concat("https://<your-worker>", http.request.uri.path)` | **「Preserve query string」を必ず ON**（`openExternalBrowser=1` 等が消えると挙動が壊れる） |
+| 2 | URI Path matches `/*` | `https://<your-worker>/r/${path}` | 既存のアフィリ用ルール |
+
+**パターンB: 専用サブドメインを新設**
+
+`t.example.com` 等を用意し、Redirect Rule 1本: `/*` → `concat("https://<your-worker>", http.request.uri.path)`（クエリ保持 ON）。アフィリ設定には触れない。
+
+**パターンC: Custom Domain 直結（ゾーンと Worker が同一 CF アカウントの場合のみ）**
+
+ドメインを Worker の Custom Domain として直接アタッチ。転送ホップが無くなり最速。ただし Workers の Custom Domain は同一アカウントのゾーンにしか張れない。
+
+### 挙動の詳細
+
+- ショートコードは作成時に自動生成される7文字の base62（62^7 ≈ 3.5兆通り、UNIQUE 制約 + 衝突時リトライ）
+- 管理画面・API の `trackingUrl` も短縮ドメイン + ショートコードで返る
+- LINE アプリ内クリック時の LIFF 識別リダイレクトや OGP 生成は従来どおり Worker 側で処理（短縮ドメインは入り口だけ）
+
 ## APIレスポンス形式
 
 ### TrackedLink オブジェクト
@@ -106,7 +166,7 @@ https://line-crm-worker.line-crm-api.workers.dev/t/{linkId}?f={friendId}
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "セミナーLP",
   "originalUrl": "https://example.com/seminar",
-  "trackingUrl": "https://line-crm-worker.line-crm-api.workers.dev/t/550e8400-e29b-41d4-a716-446655440000",
+  "trackingUrl": "https://your-worker.your-subdomain.workers.dev/t/550e8400-e29b-41d4-a716-446655440000",
   "tagId": "tag-uuid-or-null",
   "scenarioId": "scenario-uuid-or-null",
   "isActive": true,
@@ -125,7 +185,7 @@ https://line-crm-worker.line-crm-api.workers.dev/t/{linkId}?f={friendId}
   "id": "550e8400-...",
   "name": "セミナーLP",
   "originalUrl": "https://example.com/seminar",
-  "trackingUrl": "https://line-crm-worker.line-crm-api.workers.dev/t/550e8400-...",
+  "trackingUrl": "https://your-worker.your-subdomain.workers.dev/t/550e8400-...",
   "tagId": null,
   "scenarioId": null,
   "isActive": true,
@@ -156,7 +216,7 @@ https://line-crm-worker.line-crm-api.workers.dev/t/{linkId}?f={friendId}
 ### トラッキングリンク一覧取得
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/tracked-links" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -170,7 +230,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links"
       "id": "uuid-1",
       "name": "セミナーLP",
       "originalUrl": "https://example.com/seminar",
-      "trackingUrl": "https://line-crm-worker.line-crm-api.workers.dev/t/uuid-1",
+      "trackingUrl": "https://your-worker.your-subdomain.workers.dev/t/uuid-1",
       "tagId": "tag-uuid",
       "scenarioId": null,
       "isActive": true,
@@ -185,7 +245,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links"
 ### トラッキングリンク作成
 
 ```bash
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/tracked-links" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -205,7 +265,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links
     "id": "new-uuid",
     "name": "3月セミナー申込LP",
     "originalUrl": "https://example.com/seminar-march",
-    "trackingUrl": "https://line-crm-worker.line-crm-api.workers.dev/t/new-uuid",
+    "trackingUrl": "https://your-worker.your-subdomain.workers.dev/t/new-uuid",
     "tagId": "tag-uuid-seminar-interested",
     "scenarioId": "scenario-uuid-seminar-followup",
     "isActive": true,
@@ -219,7 +279,7 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links
 ### トラッキングリンク詳細取得（クリック履歴付き）
 
 ```bash
-curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links/LINK_UUID" \
+curl -X GET "https://your-worker.your-subdomain.workers.dev/api/tracked-links/LINK_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -232,7 +292,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links/
     "id": "LINK_UUID",
     "name": "セミナーLP",
     "originalUrl": "https://example.com/seminar",
-    "trackingUrl": "https://line-crm-worker.line-crm-api.workers.dev/t/LINK_UUID",
+    "trackingUrl": "https://your-worker.your-subdomain.workers.dev/t/LINK_UUID",
     "tagId": "tag-uuid",
     "scenarioId": null,
     "isActive": true,
@@ -260,7 +320,7 @@ curl -X GET "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links/
 ### トラッキングリンク削除
 
 ```bash
-curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-links/LINK_UUID" \
+curl -X DELETE "https://your-worker.your-subdomain.workers.dev/api/tracked-links/LINK_UUID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -276,10 +336,10 @@ curl -X DELETE "https://line-crm-worker.line-crm-api.workers.dev/api/tracked-lin
 
 ```bash
 # 友だち特定（メッセージ内で動的にfriendIdを埋め込む）
-curl -L "https://line-crm-worker.line-crm-api.workers.dev/t/LINK_UUID?f=FRIEND_UUID"
+curl -L "https://your-worker.your-subdomain.workers.dev/t/LINK_UUID?f=FRIEND_UUID"
 
 # 匿名（リッチメニューやWebページに配置）
-curl -L "https://line-crm-worker.line-crm-api.workers.dev/t/LINK_UUID"
+curl -L "https://your-worker.your-subdomain.workers.dev/t/LINK_UUID"
 ```
 
 レスポンス: `302 Found` → `Location: https://example.com/seminar` にリダイレクト
@@ -294,7 +354,7 @@ curl -L "https://line-crm-worker.line-crm-api.workers.dev/t/LINK_UUID"
 
 ```
 セミナーの詳細はこちら:
-https://line-crm-worker.line-crm-api.workers.dev/t/LINK_UUID?f={friendId}
+https://your-worker.your-subdomain.workers.dev/t/LINK_UUID?f={friendId}
 ```
 
 `{friendId}` はステップ配信時にシステムが自動で実際のfriendIdに置換する想定。
@@ -313,9 +373,71 @@ curl -s ".../api/tracked-links/LINK_UUID" -H "Authorization: Bearer $KEY" | \
   jq '{clickCount: .data.clickCount, uniqueClickers: (.data.clicks | map(.friendId) | unique | length)}'
 ```
 
+## キャンペーンメッセージ (v0.10+)
+
+トラッキングリンクは、流入時 (intro) と特典送付時 (reward) のメッセージテンプレートを紐付けられる。これにより 1 つのフォームを複数キャンペーンで再利用しても、各キャンペーンが独自の文面を出せる。
+
+### 追加カラム
+
+| カラム | 用途 | マイグレーション |
+|---|---|---|
+| `intro_template_id` | 友だち追加直後（form push 直前）に届く push メッセージのテンプレ | `020_tracked_link_intro.sql` |
+| `reward_template_id` | フォーム送信 + verify 通過後に届く特典メッセージのテンプレ | `021_tracked_link_reward.sql` |
+
+両方とも `message_templates(id)` を参照。NULL の場合はデフォルト挙動（intro: ハードコード Flex / reward: フォームの `on_submit_message_*`）。
+
+### intro メッセージ
+
+`/r/:ref?form=FORM_ID` 経由で友だち追加 + LIFF 起動した直後に発火。テンプレ内に `{formUrl}` を含めると送信時に実 LIFF フォーム URL に置換される。
+
+`{formUrl}` を含まないテンプレや壊れた Flex JSON は安全のためデフォルト Flex (`apps/worker/src/services/intro-message.ts:DEFAULT_FORM_LINK_FLEX`) にフォールバック。
+
+### reward メッセージ — キャンペーン単位の解決 (v0.10.1+)
+
+フォーム送信 + verify 通過後の reward は、**当該キャンペーンの tracked link** (= LIFF URL の `?ref=`) に紐付いた `reward_template_id` から解決される。LIFF クライアントが `?ref=` を読み取り、`/api/forms/:id/submit` の body に `trackedLinkId` として乗せる。
+
+解決優先度 (`apps/worker/src/services/reward-resolver.ts`):
+
+1. `body.trackedLinkId` が指定され、該当 link が DB に存在する場合
+   - その link の `reward_template_id` を採用
+   - `reward_template_id` が NULL なら `null` を返し、フォームの `on_submit_message_*` に委譲（**他キャンペーンに漏らさない**）
+2. 上記が不発（`trackedLinkId` 不明 / link が見つからない）な場合
+   - `friends.first_tracked_link_id` (first-touch attribution) にフォールバック
+3. それも不発なら `null` を返し、フォームの `on_submit_message_*` を使う
+
+テンプレ内 `{displayName}` は friend 表示名に置換される（JSON-escape 済みなので Flex でも壊れない）。
+
+#### v0.10.0 → v0.10.1 の挙動差
+
+| シナリオ | v0.10.0 | v0.10.1 |
+|---|---|---|
+| 既存友だちが新キャンペーンの link → 同じフォームを再 submit | 古い (first-touch) キャンペーンの reward | 新しいキャンペーンの reward |
+| 新キャンペーンの link で `reward_template_id=NULL` → submit | 古いキャンペーンの reward が漏れる（バグ） | フォームの `on_submit_message_*` にフォールバック |
+| `?ref=` なし（古いリンク経由） | first-touch reward | first-touch reward（後方互換） |
+
+#### セキュリティモデルの変更
+
+v0.10.0 は `friends.first_tracked_link_id` への 1 回 pin によって URL 改ざんによる reward 奪取を防いでいた。v0.10.1 はその境界を意図的に緩める：
+
+- `/api/forms/:id/submit` の `body.trackedLinkId` を信用するため、攻撃者が手動でリクエストを書き換えると別キャンペーンの reward を取得し得る
+- 本プロジェクトはオプトイン誘導が目的で、上流のエンゲージメントゲート (X Harness 連携など) が真のアンチフラウドを担う前提
+- リプレイ防止層 (`link_clicks.reward_claimed_at` 等) は意図的に **追加していない**
+
+### MCP からテンプレを紐付ける
+
+```
+manage_tracked_links action=update linkId=<id> introTemplateId=<msg-template-id> rewardTemplateId=<msg-template-id>
+```
+
+`introTemplateId` / `rewardTemplateId` を `null` に設定すれば紐付け解除。
+
 ## ソースコード参照
 
 - Worker APIルート: `apps/worker/src/routes/tracked-links.ts`
+- フォーム送信ハンドラ (reward 解決呼び出し): `apps/worker/src/routes/forms.ts`
+- reward 解決サービス (純粋関数 + Vitest): `apps/worker/src/services/reward-resolver.ts`
+- intro メッセージ生成: `apps/worker/src/services/intro-message.ts`
+- reward メッセージ生成 (Flex 描画): `apps/worker/src/services/reward-message.ts`
 - DB クエリ: `packages/db/src/tracked-links.ts`
 - SDK リソース: `packages/sdk/src/resources/tracked-links.ts`
-- マイグレーション: `packages/db/migrations/006_tracked_links.sql`
+- マイグレーション: `packages/db/migrations/006_tracked_links.sql`, `020_tracked_link_intro.sql`, `021_tracked_link_reward.sql`, `022_friend_first_tracked_link.sql`, `046_link_tracking_controls.sql`, `049_tracked_links_short_code.sql`

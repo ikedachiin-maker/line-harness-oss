@@ -41,8 +41,8 @@ images.post('/api/images', async (c) => {
       mimeType = contentType.split(';')[0] || 'image/png';
     }
 
-    if (data.byteLength > 5 * 1024 * 1024) {
-      return c.json({ success: false, error: 'Image too large (max 5MB)' }, 400);
+    if (data.byteLength > 10 * 1024 * 1024) {
+      return c.json({ success: false, error: 'Image too large (max 10MB)' }, 400);
     }
 
     const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];

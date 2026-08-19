@@ -1,0 +1,15 @@
+-- 030_dedup_progress.sql
+--
+-- multi-account-dedup broadcast の resume 用に per-account 進捗を保存するカラムを追加する。
+--
+-- Format: JSON `{"<accountId>": {"batchOffset": <int>, "success": <int>}}`
+--
+-- 動作:
+-- - processMultiAccountDedupBroadcast が起動時にこの JSON を読んで、各アカウントで
+--   保存済み batchOffset から resume する。
+-- - 各 multicast batch の完了直後に、当該アカウントの batchOffset と success を更新する。
+-- - すべて完了すると NULL に戻す（送信完了マーカー）。
+--
+-- 既存 dedup broadcast (送信済み) に対しては NULL のまま。新規 dedup broadcast の途中
+-- crash 時に resume が機能する。
+ALTER TABLE broadcasts ADD COLUMN dedup_progress TEXT;

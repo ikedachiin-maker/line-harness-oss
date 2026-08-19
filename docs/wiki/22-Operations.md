@@ -1,6 +1,6 @@
 # 22. 運用ガイド
 
-LINE Harness の日常運用、監視、バックアップ、トラブルシューティングの完全ガイド。
+L Harness の日常運用、監視、バックアップ、トラブルシューティングの完全ガイド。
 
 ---
 
@@ -24,7 +24,7 @@ LINE Harness の日常運用、監視、バックアップ、トラブルシュ�
 ### モニタリング curl コマンド
 
 ```bash
-API="https://line-crm-worker.line-crm-api.workers.dev"
+API="https://your-worker.your-subdomain.workers.dev"
 KEY="YOUR_API_KEY"
 
 # アカウントヘルスチェック
@@ -33,8 +33,8 @@ curl -s -H "Authorization: Bearer $KEY" "$API/api/accounts/{lineAccountId}/healt
 # 友だち総数
 curl -s -H "Authorization: Bearer $KEY" "$API/api/friends/count" | jq '.data.count'
 
-# 未読チャット数
-curl -s -H "Authorization: Bearer $KEY" "$API/api/chats?status=unread" | jq '.data | length'
+# 未読チャット数 (limit を明示する: /api/chats はデフォルト 300 件で頭打ちになる)
+curl -s -H "Authorization: Bearer $KEY" "$API/api/chats?status=unread&limit=1000" | jq '.data | length'
 
 # 今週の CV
 curl -s -H "Authorization: Bearer $KEY" "$API/api/conversions/report?startDate=$(date -v-7d +%Y-%m-%d)" | jq '.data'
@@ -89,13 +89,13 @@ Cloudflare D1 はマネージドサービスのため、自動バックアップ
 
 ```bash
 # テーブル単位でエクスポート
-wrangler d1 execute line-crm --command "SELECT * FROM friends" --json > friends_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM tags" --json > tags_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM scenarios" --json > scenarios_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM scenario_steps" --json > scenario_steps_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM broadcasts" --json > broadcasts_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM friend_tags" --json > friend_tags_backup.json
-wrangler d1 execute line-crm --command "SELECT * FROM conversion_events" --json > conversion_events_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM friends" --json > friends_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM tags" --json > tags_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM scenarios" --json > scenarios_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM scenario_steps" --json > scenario_steps_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM broadcasts" --json > broadcasts_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM friend_tags" --json > friend_tags_backup.json
+wrangler d1 execute your-database --command "SELECT * FROM conversion_events" --json > conversion_events_backup.json
 ```
 
 ### バックアップスクリプト例
@@ -109,7 +109,7 @@ mkdir -p "$BACKUP_DIR"
 TABLES=(friends tags scenarios scenario_steps broadcasts friend_tags friend_scenarios messages_log conversion_points conversion_events affiliates affiliate_clicks users line_accounts)
 
 for TABLE in "${TABLES[@]}"; do
-  wrangler d1 execute line-crm --command "SELECT * FROM $TABLE" --json > "$BACKUP_DIR/$TABLE.json"
+  wrangler d1 execute your-database --command "SELECT * FROM $TABLE" --json > "$BACKUP_DIR/$TABLE.json"
 done
 
 echo "Backup completed: $BACKUP_DIR"
@@ -119,7 +119,7 @@ echo "Backup completed: $BACKUP_DIR"
 
 ```bash
 # schema.sql で空テーブル作成
-wrangler d1 execute line-crm --file=packages/db/schema.sql
+wrangler d1 execute your-database --file=packages/db/schema.sql
 
 # JSON からデータ復元（手動 INSERT が必要）
 ```
@@ -215,10 +215,10 @@ wrangler secret put API_KEY
 ```bash
 # LINE Webhook URL が正しいか確認
 # LINE Developers Console > Messaging API > Webhook URL
-# => https://line-crm-worker.line-crm-api.workers.dev/webhook
+# => https://your-worker.your-subdomain.workers.dev/webhook
 
 # Webhook の検証
-curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/webhook" \
+curl -X POST "https://your-worker.your-subdomain.workers.dev/webhook" \
   -H "Content-Type: application/json" \
   -d '{"events":[]}'
 # => 200 OK が返ればルーティングは正常
@@ -241,14 +241,14 @@ curl -X POST "https://line-crm-worker.line-crm-api.workers.dev/webhook" \
 ```bash
 # API キーが正しいか確認
 curl -v -H "Authorization: Bearer YOUR_KEY" \
-  https://line-crm-worker.line-crm-api.workers.dev/api/friends/count
+  https://your-worker.your-subdomain.workers.dev/api/friends/count
 ```
 
 #### 5. D1 ストレージ上限
 
 ```bash
 # テーブルサイズ確認
-wrangler d1 execute line-crm --command "
+wrangler d1 execute your-database --command "
   SELECT name,
     (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=m.name) as row_count
   FROM sqlite_master m
