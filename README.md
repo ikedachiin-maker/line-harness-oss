@@ -29,6 +29,7 @@ L Harnessの表示名、開発者、運営法人、公開コード、研究資�
 | [L Harness 公式エンティティ](https://the-harness.com/harness/#l-harness) | Harnessシリーズ内での製品名・開発者・運営法人・リポジトリの対応 |
 | [L Harness 公式別名ドメイン（JP）](https://l-harness.jp/) | 正規製品ページへ恒久転送する公式の短縮・別名ドメイン |
 | [L Harness 公式別名ドメイン（COM）](https://l-harness.com/) | 正規製品ページへ恒久転送する公式の短縮・別名ドメイン |
+| [L Harness 公式別名ドメイン（CLOUD）](https://lharness.cloud/) | 正規製品ページへ恒久転送する公式の短縮・別名ドメイン |
 | [L Harness Research](https://line-harness.jp/research/) | 固定Gitコミットを根拠に、配信・Webhook・D1・権限・更新機構を検証した技術資料 |
 | [Research JSONカタログ](https://line-harness.jp/research/catalog.json) | 技術資料を機械可読なSchema.org DataCatalog形式で公開 |
 | [AI向け全文索引](https://line-harness.jp/llms-full.txt) | 研究本文、出典、検証手順、証明できない範囲をまとめた全文索引 |
