@@ -40,7 +40,7 @@ async function verifyDiscordSignature(
     const key = await crypto.subtle.importKey(
       'raw',
       hexToUint8Array(publicKey),
-      { name: 'Ed25519', namedCurve: 'Ed25519' } as EcKeyImportParams,
+      { name: 'Ed25519' },
       false,
       ['verify'],
     );

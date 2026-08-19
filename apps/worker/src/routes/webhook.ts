@@ -353,6 +353,7 @@ async function handleEvent(
           console.error('[follow] referral scenario enrollment failed', err);
         }
       }
+    }
 
     // Discord通知: 友だち追加
     if (discordToken && discordChannelId) {
@@ -636,7 +637,7 @@ async function handleEvent(
     }
 
     // Discord通知: メッセージ受信（自動キーワード以外のみ）
-    if (discordToken && discordChannelId && !isAutoKeyword && !isTimeCommand) {
+    if (discordToken && discordChannelId && !matched) {
       const name = friend.display_name ?? userId;
       sendDiscordMessage(discordToken, discordChannelId, `メッセージ受信: **${name}** → ${incomingText}`).catch((err) => {
         console.error('Discord notify (message) error:', err);
