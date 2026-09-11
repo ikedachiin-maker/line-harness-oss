@@ -265,7 +265,13 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
   // requests. Bearer callers (SDK/MCP) cannot be driven cross-site by a
   // browser (an attacker cannot set the Authorization header), so they are
   // exempt. Safe methods (GET/HEAD/OPTIONS) never mutate, so they are exempt.
-  if (!bearer && cookie && !SAFE_METHODS.has(c.req.method.toUpperCase())) {
+  //
+  // 判定の基準は「Authorization ヘッダが付いていないこと」ではなく
+  // **実際に Cookie で認証が通ったこと**。前者にすると、意味の無い
+  // Authorization ヘッダを1本足すだけで CSRF の門を素通りできてしまう
+  // (いまの CORS 設定では preflight が通らないので現実の穴ではないが、
+  //  設定が1つ緩むだけで穴になる書き方をしない)。
+  if (adminUser && !SAFE_METHODS.has(c.req.method.toUpperCase())) {
     const header = c.req.header(CSRF_HEADER);
     const expected = csrfTokenFromCookie(c);
     if (!header || !expected || header !== expected) {

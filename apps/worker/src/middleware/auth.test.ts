@@ -313,6 +313,20 @@ describe('CSRF protection', () => {
     expect(res.status).toBe(200);
   });
 
+  // 判定は「Authorization ヘッダが無いこと」ではなく「Cookie で認証が通ったこと」。
+  // 無意味な Authorization ヘッダを1本足すだけで門を素通りできてはいけない。
+  test('a junk Authorization header does not buy a CSRF exemption', async () => {
+    const res = await app().request('/api/protected', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer not-a-real-key',
+        Cookie: `lh_admin_session=${SESSION_TOKEN}; lh_csrf=token-abc`,
+      },
+    }, crossSiteEnv());
+    expect(res.status).toBe(403);
+    expect((await res.json() as { error: string }).error).toMatch(/csrf/i);
+  });
+
   test('Bearer POST is exempt from CSRF (not cookie-driven)', async () => {
     const res = await app().request('/api/protected', {
       method: 'POST',
