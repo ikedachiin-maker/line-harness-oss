@@ -297,6 +297,23 @@ describe('authenticateAdminUser', () => {
     expect(wrong).toEqual({ ok: false, reason: 'invalid_credentials' });
   }, 30_000);
 
+  // 存在しないアドレスのほうが計算量が多いと、応答時間の差で未登録だと分かる。
+  // どちらの経路も「検証1回」に揃っていることを、経過時間の比で確かめる。
+  test('spends comparable time on an unknown address as on a known one', async () => {
+    const t0 = Date.now();
+    await authenticateAdminUser(db, 'nobody@example.com', PASSWORD);
+    const unknown = Date.now() - t0;
+
+    const t1 = Date.now();
+    await authenticateAdminUser(db, EMAIL, 'wrong password here');
+    const known = Date.now() - t1;
+
+    // 厳密な等時間は保証できない (DB 往復もある)。倍半分に収まっていれば、
+    // 「片方だけハッシュを1回余分に作る」ような差は無い。
+    expect(unknown).toBeLessThan(known * 2 + 200);
+    expect(known).toBeLessThan(unknown * 2 + 200);
+  }, 60_000);
+
   test('counts consecutive failures', async () => {
     await authenticateAdminUser(db, EMAIL, 'wrong');
     await authenticateAdminUser(db, EMAIL, 'wrong');

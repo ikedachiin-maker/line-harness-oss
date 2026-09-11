@@ -348,6 +348,16 @@ export async function deactivateAdminUser(db: D1Database, userId: string): Promi
 
 // ── ログイン ─────────────────────────────────────────────────────────────────
 
+/**
+ * 未登録のアドレスで来たときに検証するダミー。
+ *
+ * どのパスワードとも一致しない値を、本番と同じ計算量で事前に作って埋めてある。
+ * 秘密ではない (一致する入力が存在しないため) が、現行の計算量と揃えておく
+ * 必要はある。揃っていないと応答時間の差で未登録かどうかが読めてしまう。
+ */
+const DUMMY_HASH =
+  'pbkdf2$sha256$100000$6$j1FzRjtIQ6kp/NDIqvwtiA==$NoFC2PQ088oVpE6P+M9NbNfqJFRSF2bAKYjoeLj6qC8=';
+
 export type LoginFailure =
   | 'invalid_credentials'
   | 'locked'
@@ -382,7 +392,12 @@ export async function authenticateAdminUser(
 
   if (!user) {
     // タイミングを揃えるためのダミー検証。結果は使わない。
-    await verifyPassword(password, await hashPassword('dummy-password-for-timing'));
+    //
+    // ここで hashPassword を呼ぶと、存在しないアドレスのほうが **存在する場合の
+    // 倍** 計算することになる (ハッシュ生成 + 検証)。遅いほうが未登録だと
+    // 分かってしまっては逆効果だし、CPU も2倍要る。
+    // 固定のダミー値を検証するだけにして、どちらの経路も「検証1回」に揃える。
+    await verifyPassword(password, DUMMY_HASH);
     return { ok: false, reason: 'invalid_credentials' };
   }
 
