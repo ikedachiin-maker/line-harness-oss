@@ -15,7 +15,8 @@ export interface ConversionPoint {
 export interface ConversionEvent {
   id: string;
   conversion_point_id: string;
-  friend_id: string;
+  /** NULL when the person never passed through LINE (mail / UTAGE opt-in). */
+  friend_id: string | null;
   user_id: string | null;
   affiliate_code: string | null;
   metadata: string | null;
@@ -81,21 +82,43 @@ export async function deleteConversionPoint(
 
 export interface TrackConversionInput {
   conversionPointId: string;
-  friendId: string;
+  /** LINE friend. Omit for a person who came in through mail / UTAGE. */
+  friendId?: string | null;
+  /** Channel-agnostic person (users.id). Required when friendId is absent. */
   userId?: string | null;
   affiliateCode?: string | null;
   metadata?: string | null;
 }
 
+/**
+ * Record a conversion for a friend, a user, or both.
+ *
+ * At least one of friendId / userId must be given — the DB enforces the same
+ * rule with a CHECK, but failing here produces a readable error instead of a
+ * raw SQLite constraint message.
+ *
+ * Attribution is resolved from whichever identity is present, preferring the
+ * friend when both are: LINE touches carry the self-click exclusion and are the
+ * richer signal. See migrations/070_channel_agnostic_conversions.sql.
+ */
 export async function trackConversion(
   db: D1Database,
   input: TrackConversionInput,
 ): Promise<ConversionEvent> {
+  const friendId = input.friendId ?? null;
+  const userId = input.userId ?? null;
+  if (!friendId && !userId) {
+    throw new Error('trackConversion requires friendId or userId');
+  }
+
   const id = crypto.randomUUID();
   const now = jstNow();
 
   // Resolve last-touch affiliate attribution before inserting the event.
-  const attr = await resolveAffiliateAttribution(db, input.friendId);
+  const attr = await resolveAffiliateAttribution(
+    db,
+    friendId ? { friendId } : { userId: userId! },
+  );
 
   // Affiliate-attributed CVs enter the approval queue as 'pending'; non-attributed
   // CVs leave approval_status NULL (the approval flow only applies to attributed rows).
@@ -109,8 +132,8 @@ export async function trackConversion(
     .bind(
       id,
       input.conversionPointId,
-      input.friendId,
-      input.userId ?? null,
+      friendId,
+      userId,
       input.affiliateCode ?? null,
       input.metadata ?? null,
       now,
@@ -131,6 +154,7 @@ export async function getConversionEvents(
   opts: {
     conversionPointId?: string;
     friendId?: string;
+    userId?: string;
     affiliateCode?: string;
     startDate?: string;
     endDate?: string;
@@ -148,6 +172,10 @@ export async function getConversionEvents(
   if (opts.friendId) {
     conditions.push('friend_id = ?');
     values.push(opts.friendId);
+  }
+  if (opts.userId) {
+    conditions.push('user_id = ?');
+    values.push(opts.userId);
   }
   if (opts.affiliateCode) {
     conditions.push('affiliate_code = ?');

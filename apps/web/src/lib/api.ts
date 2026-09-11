@@ -34,6 +34,35 @@ import type {
   PoolAccount,
 } from '@line-crm/shared'
 
+/** 名簿規模のまとめ (GET /api/audience/overview)。 */
+export type AudienceAccountRow = {
+  channel: string
+  accountKey: string
+  accountLabel: string | null
+  total: number
+  source: string
+  capturedOn: string
+  delta7d: number | null
+  delta30d: number | null
+}
+
+export type AudienceChannelRow = {
+  channel: string
+  total: number
+  delta7d: number | null
+  delta30d: number | null
+  accounts: AudienceAccountRow[]
+  capturedOn: string | null
+}
+
+export type AudienceOverview = {
+  total: number
+  delta7d: number | null
+  delta30d: number | null
+  channels: AudienceChannelRow[]
+  missingChannels: string[]
+}
+
 /** Affiliate offer (案件) as returned by the worker. */
 export type AffiliateOffer = {
   id: string
@@ -681,6 +710,21 @@ export const api = {
         { method: 'POST' },
       ),
   },
+  audience: {
+    overview: () => fetchApi<ApiResponse<AudienceOverview>>('/api/audience/overview'),
+    history: (channel: string, accountKey?: string, days = 90) =>
+      fetchApi<ApiResponse<{ capturedOn: string; total: number }[]>>(
+        `/api/audience/history?channel=${encodeURIComponent(channel)}`
+          + (accountKey ? `&accountKey=${encodeURIComponent(accountKey)}` : '')
+          + `&days=${days}`,
+      ),
+    collect: () =>
+      fetchApi<ApiResponse<{ recorded: number; failures: { channel: string; reason: string }[] }>>(
+        '/api/audience/collect',
+        { method: 'POST' },
+      ),
+  },
+
   conversions: {
     points: () =>
       fetchApi<ApiResponse<ConversionPoint[]>>('/api/conversions/points'),

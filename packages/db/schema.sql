@@ -282,10 +282,14 @@ CREATE TABLE IF NOT EXISTS conversion_points (
 -- ============================================================
 -- Round 2: Conversion Events (CV Records)
 -- ============================================================
+-- friend_id は nullable。LINE を通らずメール/UTAGE から入った人は friends に
+-- 行が作れない (friends.line_user_id が UNIQUE NOT NULL) ため、その場合は
+-- user_id 側で紐づける。両方 NULL の孤児 CV だけ CHECK で禁じる。
+-- 経緯は migrations/070_channel_agnostic_conversions.sql
 CREATE TABLE IF NOT EXISTS conversion_events (
   id                   TEXT PRIMARY KEY,
   conversion_point_id  TEXT NOT NULL REFERENCES conversion_points (id) ON DELETE CASCADE,
-  friend_id            TEXT NOT NULL REFERENCES friends (id) ON DELETE CASCADE,
+  friend_id            TEXT REFERENCES friends (id) ON DELETE CASCADE,
   user_id              TEXT,
   affiliate_code       TEXT,
   metadata             TEXT,
@@ -293,12 +297,14 @@ CREATE TABLE IF NOT EXISTS conversion_events (
   attributed_ref_code  TEXT,
   approval_status      TEXT CHECK (approval_status IN ('pending','approved','rejected')),
   approved_at          TEXT,
-  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
+  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  CHECK (friend_id IS NOT NULL OR user_id IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversion_events_point ON conversion_events (conversion_point_id);
 CREATE INDEX IF NOT EXISTS idx_conversion_events_friend ON conversion_events (friend_id);
 CREATE INDEX IF NOT EXISTS idx_conversion_events_affiliate ON conversion_events (affiliate_code);
+CREATE INDEX IF NOT EXISTS idx_conversion_events_user ON conversion_events (user_id);
 
 -- ============================================================
 -- Round 2: Affiliates
@@ -1134,3 +1140,32 @@ CREATE TABLE IF NOT EXISTS rich_menu_areas (
 CREATE INDEX IF NOT EXISTS idx_rich_menu_pages_group    ON rich_menu_pages(group_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_rich_menu_areas_page     ON rich_menu_areas(page_id);
 CREATE INDEX IF NOT EXISTS idx_rich_menu_groups_account ON rich_menu_groups(account_id, status);
+
+-- ============================================================
+-- 全チャネルの名簿規模 (日次スナップショット)
+-- 名簿そのものは各チャネルに置いたまま、人数だけをここに積む。
+-- 経緯は migrations/071_audience_snapshots.sql
+-- ============================================================
+CREATE TABLE IF NOT EXISTS audience_snapshots (
+  id            TEXT PRIMARY KEY,
+  -- 'line' | 'mail' | 'x' | 'instagram' | 'threads' など。増えても schema は触らない
+  channel       TEXT NOT NULL,
+  -- チャネル内でアカウントを一意にする値 (line_account_id / @handle / リストID)
+  account_key   TEXT NOT NULL,
+  -- 画面に出す名前。account_key が内部IDのときに人が読めるようにする
+  account_label TEXT,
+  total         INTEGER NOT NULL,
+  -- 'self'(自分のDBを数えた) | 'poll'(相手のAPIを叩いた) | 'report'(送られてきた)
+  source        TEXT NOT NULL DEFAULT 'poll',
+  -- JST の日付 (YYYY-MM-DD)。1日1行に畳む単位
+  captured_on   TEXT NOT NULL,
+  captured_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  -- 同じ日に何度取り直しても行が増えないようにする。cron は毎分回るので
+  -- これが無いと1日1,440行積む。UPSERT で最後の値が残る
+  UNIQUE (channel, account_key, captured_on)
+);
+
+CREATE INDEX IF NOT EXISTS idx_audience_snapshots_day
+  ON audience_snapshots (captured_on DESC);
+CREATE INDEX IF NOT EXISTS idx_audience_snapshots_series
+  ON audience_snapshots (channel, account_key, captured_on DESC);

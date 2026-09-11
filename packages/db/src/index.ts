@@ -20,6 +20,7 @@ export * from './stripe';
 export * from './health';
 export * from './automations';
 export * from './entry-routes';
+export * from './audience';
 export * from './tracked-links';
 export * from './forms';
 export * from './ad-platforms';

@@ -13,12 +13,25 @@ import { jstNow } from './utils.js';
 //  - self-clicks (the friend is the affiliate's own friend_id) are excluded
 //  - is_active=0 links STILL attribute here; the report layer distinguishes
 //    paused links, not this resolver.
+//
+// A touch belongs to a friend (LINE) or to a user (mail / UTAGE opt-in, where
+// the person never passes through LINE and so has no friends row). Both live
+// in ref_tracking; which column is set depends on the channel the person came
+// in through. See migrations/070_channel_agnostic_conversions.sql.
 
 export const ATTRIBUTION_WINDOW_DAYS = 90;
 
+/** Who the touches being resolved belong to. Exactly one field is set. */
+export type AttributionSubject =
+  | { friendId: string; userId?: undefined }
+  | { userId: string; friendId?: undefined };
+
 /**
- * Resolve the last-touch affiliate attribution for a friend.
+ * Resolve the last-touch affiliate attribution for a person.
  *
+ * @param subject Either a friend id (LINE) or a user id (mail / UTAGE). A bare
+ *                string is accepted as a friend id for backwards compatibility
+ *                with the original signature.
  * @param at Reference timestamp (JST ISO). Defaults to jstNow().
  *           Touches must fall within [at - 90 days, at].
  * @returns The winning affiliate + ref_code, or null if none is eligible.
@@ -33,24 +46,35 @@ export const ATTRIBUTION_WINDOW_DAYS = 90;
  */
 export async function resolveAffiliateAttribution(
   db: D1Database,
-  friendId: string,
+  subject: string | AttributionSubject,
   at?: string, // 省略時 jstNow()
 ): Promise<{ affiliateId: string; refCode: string } | null> {
+  const resolved: AttributionSubject =
+    typeof subject === 'string' ? { friendId: subject } : subject;
   const now = at ?? jstNow();
+
+  // Self-click exclusion only has meaning on the LINE side: affiliates.friend_id
+  // is the affiliate's own LINE friend row, so a user-id touch can never be a
+  // self-click and needs no such clause.
+  const subjectClause = resolved.friendId
+    ? `rt.friend_id = ?
+          AND (a.friend_id IS NULL OR a.friend_id != rt.friend_id)  -- 自己クリック除外`
+    : `rt.user_id = ?`;
+  const subjectValue = resolved.friendId ?? resolved.userId!;
+
   const row = await db
     .prepare(
       `SELECT al.affiliate_id AS affiliate_id, rt.ref_code AS ref_code
          FROM ref_tracking rt
          JOIN affiliate_links al ON al.ref_code = rt.ref_code
          JOIN affiliates a ON a.id = al.affiliate_id
-        WHERE rt.friend_id = ?
+        WHERE ${subjectClause}
           AND julianday(rt.created_at) >= julianday(?) - ${ATTRIBUTION_WINDOW_DAYS}
           AND julianday(rt.created_at) <= julianday(?)
-          AND (a.friend_id IS NULL OR a.friend_id != rt.friend_id)  -- 自己クリック除外
         ORDER BY julianday(rt.created_at) DESC
         LIMIT 1`,
     )
-    .bind(friendId, now, now)
+    .bind(subjectValue, now, now)
     .first<{ affiliate_id: string; ref_code: string }>();
   return row ? { affiliateId: row.affiliate_id, refCode: row.ref_code } : null;
 }

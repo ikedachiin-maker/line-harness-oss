@@ -18,6 +18,8 @@ export interface RefTracking {
   id: string;
   ref_code: string;
   friend_id: string | null;
+  /** Set instead of friend_id when the touch came in without LINE (mail / UTAGE). */
+  user_id: string | null;
   entry_route_id: string | null;
   source_url: string | null;
   fbclid: string | null;
@@ -217,11 +219,19 @@ export async function getEntryRouteFunnel(
   );
 }
 
+/**
+ * Log one ref touch.
+ *
+ * friendId and userId are both optional and both may be absent: an anonymous
+ * landing click on /r/:ref belongs to nobody yet. Mail / UTAGE opt-ins set
+ * userId, since those people have no friends row to point at.
+ */
 export async function recordRefTracking(
   db: D1Database,
   opts: {
     refCode: string;
     friendId?: string | null;
+    userId?: string | null;
     entryRouteId?: string | null;
     sourceUrl?: string | null;
     fbclid?: string | null;
@@ -241,15 +251,16 @@ export async function recordRefTracking(
   await db
     .prepare(
       `INSERT INTO ref_tracking
-       (id, ref_code, friend_id, entry_route_id, source_url,
+       (id, ref_code, friend_id, user_id, entry_route_id, source_url,
         fbclid, gclid, twclid, ttclid, utm_source, utm_medium, utm_campaign,
         user_agent, ip_address, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
       opts.refCode,
       opts.friendId ?? null,
+      opts.userId ?? null,
       opts.entryRouteId ?? null,
       opts.sourceUrl ?? null,
       opts.fbclid ?? null,

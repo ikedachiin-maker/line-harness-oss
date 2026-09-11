@@ -20,6 +20,7 @@ import { processReminderDeliveries } from './services/reminder-delivery.js';
 import { checkAccountHealth } from './services/ban-monitor.js';
 import { refreshLineAccessTokens } from './services/token-refresh.js';
 import { processInsightFetch } from './services/insight-fetcher.js';
+import { collectAudience, harnessSourcesFromEnv, jstHour } from './services/audience-collector.js';
 import { processDueReminders } from './services/booking-reminders.js';
 import { runExpirer } from './services/booking-expirer.js';
 import { processDueEventReminders } from './services/event-booking-reminders.js';
@@ -64,6 +65,8 @@ import { automations } from './routes/automations.js';
 import { richMenus } from './routes/rich-menus.js';
 import { trackedLinks } from './routes/tracked-links.js';
 import { entryRoutes } from './routes/entry-routes.js';
+import { ingest } from './routes/ingest.js';
+import { audience } from './routes/audience.js';
 import { forms } from './routes/forms.js';
 import { adPlatforms } from './routes/ad-platforms.js';
 import { staff } from './routes/staff.js';
@@ -117,6 +120,15 @@ export type Env = {
     ADMIN_ALLOW_CROSS_SITE?: string; // 'true' opts into SameSite=None cross-site cookies
     X_HARNESS_URL?: string;  // Optional: X Harness API URL for account linking
     IG_HARNESS_URL?: string;  // Optional: IG Harness API URL for cross-platform linking
+    // Audience roll-up (/api/audience): 各ハーネスの人数を1日1回集めて
+    // 管理画面の1ページに並べる。URL と API キーが両方揃ったチャネルだけ集める。
+    // 未設定のチャネルは黙って飛ばす (設定漏れは overview の missingChannels に出る)。
+    X_HARNESS_API_KEY?: string;
+    IG_HARNESS_API_KEY?: string;
+    THREADS_HARNESS_URL?: string;
+    THREADS_HARNESS_API_KEY?: string;
+    MAIL_HARNESS_URL?: string;
+    MAIL_HARNESS_API_KEY?: string;
     IG_HARNESS_LINK_SECRET?: string;  // Shared secret for IG Harness link-line webhook
     // Phase 5 self-update — consumed by /admin/update/*. Defaults live in
     // wrangler.toml [vars]; secrets (CF_API_TOKEN, ADMIN_API_KEY) come from
@@ -221,6 +233,8 @@ app.route('/', automations);
 app.route('/', richMenus);
 app.route('/', trackedLinks);
 app.route('/', entryRoutes);
+app.route('/', ingest);
+app.route('/', audience);
 app.route('/', forms);
 app.route('/', adPlatforms);
 app.route('/', staff);
@@ -1065,6 +1079,25 @@ async function scheduled(
     await processInsightFetch(env.DB, lineClients, defaultLineClient);
   } catch (e) {
     console.error('Insight fetch error:', e);
+  }
+
+  // 名簿規模のスナップショット。1日1行に畳まれる (UPSERT) ので何度走っても
+  // 行は増えないが、外部ハーネスを毎分叩く意味も無いので JST 04:00 台に絞る。
+  // 深夜に置くのは、日中の増減を1日の区切りで見たいから。
+  if (jstHour(event.scheduledTime) === 4 && new Date(event.scheduledTime).getUTCMinutes() % 30 === 0) {
+    try {
+      const result = await collectAudience(env.DB, harnessSourcesFromEnv(env));
+      if (result.recorded > 0 || result.failures.length > 0) {
+        console.log(
+          `[audience] recorded=${result.recorded}`
+          + (result.failures.length
+            ? ` failed=${result.failures.map((f) => `${f.channel}(${f.reason})`).join(',')}`
+            : ''),
+        );
+      }
+    } catch (e) {
+      console.error('Audience collect error:', e);
+    }
   }
 
   // Booking expirer — runs only on the 6h cron tick.

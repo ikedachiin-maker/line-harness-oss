@@ -47,6 +47,23 @@ ADMIN_PUBLIC_URL = "https://line-harness-admin.pages.dev"
 LIFF_PUBLIC_URL = "https://line-harness-liff.pages.dev"
 CF_ACCOUNT_ID = "YOUR_DEV_ACCOUNT_ID"
 
+# ── 名簿規模 (/audience) ──
+# メルマガ読者数・LINE友だち数・各SNSのフォロワー数を1画面にまとめるための
+# 収集先。LINE は自分の DB を数えるので設定不要。URL と API キーが両方揃った
+# チャネルだけを毎朝 JST 04:00 に1回叩く。未設定のチャネルは黙って飛ばす。
+# (設定漏れは管理画面の「まだ繋がっていないチャネル」に出る)
+#
+#   URL は [vars] に、API キーは `wrangler secret put <名前>` に置く:
+#     X_HARNESS_API_KEY / IG_HARNESS_API_KEY
+#     THREADS_HARNESS_API_KEY / MAIL_HARNESS_API_KEY
+#
+# UTAGE だけは叩けない (API キーの置き場所が違う) ので、ikeda-os の
+# ops/audience-daily.sh が POST /api/audience/report で送り込む。
+# X_HARNESS_URL = "https://x-harness.example.workers.dev"
+# IG_HARNESS_URL = "https://ig-harness.example.workers.dev"
+# THREADS_HARNESS_URL = "https://threads-harness.example.workers.dev"
+# MAIL_HARNESS_URL = "https://mail-harness.example.workers.dev"
+
 # ═══════════════════════════════════════════════════════════════
 # 本番環境
 # 使い方: npx wrangler deploy --env production --name your-worker-name

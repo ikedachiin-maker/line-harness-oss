@@ -70,6 +70,52 @@ export async function getUserByEmail(
     .first<User>();
 }
 
+/**
+ * Find-or-create the user behind an email address, and fill in any detail we
+ * did not have before.
+ *
+ * This is the entry point for people who reach us without LINE — a mail-harness
+ * subscribe, a UTAGE opt-in — so it has to be safe to call on every event, not
+ * just the first. Repeat calls update rather than duplicate.
+ *
+ * Email is matched case-insensitively by lower-casing on the way in; callers
+ * should not pre-normalise. Existing rows written before this helper may hold
+ * mixed case, so the lookup falls back to a case-insensitive comparison before
+ * deciding to insert.
+ *
+ * Only absent fields are filled: a display_name typed by the person into a LINE
+ * profile is better data than one echoed from a mail form, so an existing value
+ * is never overwritten by this path.
+ */
+export async function upsertUserByEmail(
+  db: D1Database,
+  input: { email: string; displayName?: string | null; externalId?: string | null },
+): Promise<User> {
+  const email = input.email.trim().toLowerCase();
+
+  const existing =
+    (await getUserByEmail(db, email)) ??
+    (await db
+      .prepare(`SELECT * FROM users WHERE lower(email) = ? ORDER BY created_at LIMIT 1`)
+      .bind(email)
+      .first<User>());
+
+  if (!existing) {
+    return createUser(db, {
+      email,
+      displayName: input.displayName ?? null,
+      externalId: input.externalId ?? null,
+    });
+  }
+
+  const patch: UpdateUserInput = {};
+  if (!existing.display_name && input.displayName) patch.display_name = input.displayName;
+  if (!existing.external_id && input.externalId) patch.external_id = input.externalId;
+  if (Object.keys(patch).length === 0) return existing;
+
+  return (await updateUser(db, existing.id, patch)) ?? existing;
+}
+
 export async function getUserByPhone(
   db: D1Database,
   phone: string,

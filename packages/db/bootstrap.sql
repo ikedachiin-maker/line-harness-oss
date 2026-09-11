@@ -107,6 +107,25 @@ CREATE TABLE affiliates (
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
 );
 
+CREATE TABLE audience_snapshots (
+  id            TEXT PRIMARY KEY,
+  -- 'line' | 'mail' | 'x' | 'instagram' | 'threads' など。増えても schema は触らない
+  channel       TEXT NOT NULL,
+  -- チャネル内でアカウントを一意にする値 (line_account_id / @handle / リストID)
+  account_key   TEXT NOT NULL,
+  -- 画面に出す名前。account_key が内部IDのときに人が読めるようにする
+  account_label TEXT,
+  total         INTEGER NOT NULL,
+  -- 'self'(自分のDBを数えた) | 'poll'(相手のAPIを叩いた) | 'report'(送られてきた)
+  source        TEXT NOT NULL DEFAULT 'poll',
+  -- JST の日付 (YYYY-MM-DD)。1日1行に畳む単位
+  captured_on   TEXT NOT NULL,
+  captured_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  -- 同じ日に何度取り直しても行が増えないようにする。cron は毎分回るので
+  -- これが無いと1日1,440行積む。UPSERT で最後の値が残る
+  UNIQUE (channel, account_key, captured_on)
+);
+
 CREATE TABLE auto_replies (
   id               TEXT PRIMARY KEY,
   keyword          TEXT NOT NULL,
@@ -255,10 +274,10 @@ CREATE TABLE chats (
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
 , line_account_id TEXT);
 
-CREATE TABLE conversion_events (
+CREATE TABLE "conversion_events" (
   id                   TEXT PRIMARY KEY,
   conversion_point_id  TEXT NOT NULL REFERENCES conversion_points (id) ON DELETE CASCADE,
-  friend_id            TEXT NOT NULL REFERENCES friends (id) ON DELETE CASCADE,
+  friend_id            TEXT REFERENCES friends (id) ON DELETE CASCADE,
   user_id              TEXT,
   affiliate_code       TEXT,
   metadata             TEXT,
@@ -266,7 +285,24 @@ CREATE TABLE conversion_events (
   attributed_ref_code  TEXT,
   approval_status      TEXT CHECK (approval_status IN ('pending','approved','rejected')),
   approved_at          TEXT,
-  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
+  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  -- CV は必ず誰かに紐づく。片方が NULL でも、両方 NULL の孤児 CV は作らせない。
+  CHECK (friend_id IS NOT NULL OR user_id IS NOT NULL)
+);
+
+CREATE TABLE "conversion_events_pre070" (
+  id                   TEXT PRIMARY KEY,
+  conversion_point_id  TEXT NOT NULL REFERENCES conversion_points (id) ON DELETE CASCADE,
+  friend_id            TEXT REFERENCES friends (id) ON DELETE CASCADE,
+  user_id              TEXT,
+  affiliate_code       TEXT,
+  metadata             TEXT,
+  affiliate_id         TEXT REFERENCES affiliates (id),
+  attributed_ref_code  TEXT,
+  approval_status      TEXT CHECK (approval_status IN ('pending','approved','rejected')),
+  approved_at          TEXT,
+  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  CHECK (friend_id IS NOT NULL OR user_id IS NOT NULL)
 );
 
 CREATE TABLE conversion_points (
@@ -766,7 +802,7 @@ CREATE TABLE ref_tracking (
   entry_route_id  TEXT REFERENCES entry_routes (id) ON DELETE SET NULL,
   source_url      TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-, fbclid TEXT, gclid TEXT, twclid TEXT, ttclid TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, user_agent TEXT, ip_address TEXT);
+, fbclid TEXT, gclid TEXT, twclid TEXT, ttclid TEXT, utm_source TEXT, utm_medium TEXT, utm_campaign TEXT, user_agent TEXT, ip_address TEXT, user_id TEXT);
 
 CREATE TABLE reminder_steps (
   id              TEXT PRIMARY KEY,
@@ -1166,6 +1202,12 @@ CREATE INDEX idx_affiliate_links_offer ON affiliate_links (offer_id);
 
 CREATE UNIQUE INDEX idx_affiliates_friend ON affiliates (friend_id) WHERE friend_id IS NOT NULL;
 
+CREATE INDEX idx_audience_snapshots_day
+  ON audience_snapshots (captured_on DESC);
+
+CREATE INDEX idx_audience_snapshots_series
+  ON audience_snapshots (channel, account_key, captured_on DESC);
+
 CREATE INDEX idx_auto_replies_template_id ON auto_replies(template_id);
 
 CREATE INDEX idx_automation_logs_automation ON automation_logs (automation_id);
@@ -1201,6 +1243,8 @@ CREATE INDEX idx_conversion_events_affiliate ON conversion_events (affiliate_cod
 CREATE INDEX idx_conversion_events_friend ON conversion_events (friend_id);
 
 CREATE INDEX idx_conversion_events_point ON conversion_events (conversion_point_id);
+
+CREATE INDEX idx_conversion_events_user ON conversion_events (user_id);
 
 CREATE INDEX idx_engagement_events_actor_friend
   ON engagement_events(program_id, actor_friend_id, occurred_at DESC);
@@ -1336,6 +1380,10 @@ CREATE INDEX idx_ref_tracking_friend_created ON ref_tracking(friend_id, created_
 CREATE INDEX idx_ref_tracking_ref    ON ref_tracking (ref_code);
 
 CREATE INDEX idx_ref_tracking_ref_created ON ref_tracking(ref_code, created_at);
+
+CREATE INDEX idx_ref_tracking_user ON ref_tracking (user_id);
+
+CREATE INDEX idx_ref_tracking_user_created ON ref_tracking (user_id, created_at);
 
 CREATE INDEX idx_reminder_steps_reminder ON reminder_steps (reminder_id);
 

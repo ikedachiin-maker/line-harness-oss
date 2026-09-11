@@ -19,6 +19,19 @@
  *   - CREATE [UNIQUE] INDEX
  *   - INSERT (seed data)
  *
+ * Waiver:
+ *   A migration that must relax a NOT NULL / CHECK constraint cannot do it in
+ *   place — SQLite has no ALTER for that. Such a file may opt out of the
+ *   RENAME TABLE rule alone by opening with:
+ *
+ *     -- migration-policy: allow-recreate — <reason>
+ *
+ *   The reason is mandatory. DROP TABLE stays forbidden even with the waiver,
+ *   which forces the safe shape: copy into a new table, rename the old one
+ *   aside and keep it, rename the new one into place. No statement in that
+ *   sequence can lose rows if the file fails partway (D1 does not wrap a
+ *   --file batch in a transaction).
+ *
  * Library API:
  *   checkMigration(sql) → { ok: true } | { ok: false, violation: string }
  *
@@ -49,6 +62,10 @@ interface Rule {
   label: string;
   // Matches against the comment-stripped SQL. Use case-insensitive regex.
   pattern: RegExp;
+  // When true, the `allow-recreate` waiver (see ALLOW_RECREATE_PATTERN) can
+  // suppress this rule. Only the constructs a table-recreate genuinely needs
+  // are waivable; everything destructive stays unconditional.
+  waivable?: boolean;
 }
 
 // Order matters: more specific rules first so messages are useful.
@@ -78,6 +95,11 @@ const RULES: Rule[] = [
     label: 'RENAME TABLE is forbidden (additive-only migrations)',
     // `ALTER TABLE x RENAME TO y` — distinct from RENAME COLUMN.
     pattern: /\bALTER\s+TABLE\s+\S+\s+RENAME\s+TO\b/i,
+    // Waivable: SQLite cannot relax NOT NULL / CHECK in place, so the only way
+    // to loosen a constraint is create-copy-rename. DROP TABLE stays forbidden
+    // above, which forces the safe shape — the old table is renamed aside and
+    // kept, not deleted, so a mid-file failure cannot lose rows.
+    waivable: true,
   },
   {
     label:
@@ -115,9 +137,34 @@ function stripLineComments(sql: string): string {
     .join('\n');
 }
 
+/**
+ * Opt-out marker for the one construct a constraint relaxation cannot avoid.
+ *
+ * A migration may waive the RENAME TABLE rule by opening with a comment line:
+ *
+ *   -- migration-policy: allow-recreate — <why this table must be rebuilt>
+ *
+ * The reason text is mandatory: the marker alone does not parse. This keeps a
+ * deliberate rebuild visible in review instead of silently permitted, and it
+ * narrows the escape hatch to recreate-shaped changes only — DROP TABLE,
+ * DROP COLUMN, RENAME COLUMN, ADD UNIQUE and the rest stay unconditional, so a
+ * waived migration still cannot delete data.
+ *
+ * Read from the RAW sql (not the comment-stripped copy) because the marker
+ * lives in a comment.
+ */
+const ALLOW_RECREATE_PATTERN =
+  /^[ \t]*--[ \t]*migration-policy:[ \t]*allow-recreate[ \t]*[—:-][ \t]*\S/im;
+
+export function hasRecreateWaiver(sql: string): boolean {
+  return ALLOW_RECREATE_PATTERN.test(sql);
+}
+
 export function checkMigration(sql: string): CheckResult {
+  const waived = hasRecreateWaiver(sql);
   const stripped = stripLineComments(sql);
   for (const rule of RULES) {
+    if (waived && rule.waivable) continue;
     const m = stripped.match(rule.pattern);
     if (m) {
       return { ok: false, violation: `${rule.label} (matched: "${m[0].trim()}")` };

@@ -3,6 +3,7 @@ import {
   POLICY_CUTOFF_PREFIX,
   checkMigration,
   filterMigrationsByPolicy,
+  hasRecreateWaiver,
 } from './check-migrations';
 
 describe('checkMigration', () => {
@@ -124,6 +125,69 @@ describe('checkMigration', () => {
     const sql = `drop table foo;`;
     const result = checkMigration(sql);
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('allow-recreate waiver', () => {
+  const WAIVER = '-- migration-policy: allow-recreate — SQLite cannot relax NOT NULL in place.\n';
+
+  it('permits the create-copy-rename sequence when the waiver is present', () => {
+    const sql =
+      WAIVER +
+      `CREATE TABLE foo_new (id TEXT PRIMARY KEY, owner TEXT);\n` +
+      `INSERT INTO foo_new (id, owner) SELECT id, owner FROM foo;\n` +
+      `ALTER TABLE foo RENAME TO foo_pre070;\n` +
+      `ALTER TABLE foo_new RENAME TO foo;\n`;
+    expect(checkMigration(sql)).toEqual({ ok: true });
+  });
+
+  it('still blocks the same sequence without the waiver', () => {
+    const sql = `ALTER TABLE foo RENAME TO foo_pre070;`;
+    const result = checkMigration(sql);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violation).toMatch(/RENAME/i);
+  });
+
+  // The waiver narrows to recreate-shaped changes only. If it ever suppressed
+  // DROP TABLE, a failed migration could delete rows outright — which is the
+  // exact risk the no-DROP shape exists to remove.
+  it('does NOT waive DROP TABLE', () => {
+    const result = checkMigration(WAIVER + 'DROP TABLE foo;');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violation).toMatch(/DROP TABLE/i);
+  });
+
+  it('does NOT waive DROP COLUMN', () => {
+    const result = checkMigration(WAIVER + 'ALTER TABLE foo DROP COLUMN name;');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violation).toMatch(/DROP COLUMN/i);
+  });
+
+  it('does NOT waive RENAME COLUMN', () => {
+    const result = checkMigration(WAIVER + 'ALTER TABLE foo RENAME COLUMN a TO b;');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violation).toMatch(/RENAME COLUMN/i);
+  });
+
+  it('does NOT waive ADD UNIQUE', () => {
+    const result = checkMigration(WAIVER + 'ALTER TABLE foo ADD UNIQUE (email);');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.violation).toMatch(/UNIQUE/i);
+  });
+
+  it('requires a reason after the marker', () => {
+    expect(hasRecreateWaiver('-- migration-policy: allow-recreate\n')).toBe(false);
+    expect(hasRecreateWaiver('-- migration-policy: allow-recreate — \n')).toBe(false);
+    expect(hasRecreateWaiver('-- migration-policy: allow-recreate — because.\n')).toBe(true);
+  });
+
+  it('accepts a plain hyphen or colon as the separator before the reason', () => {
+    expect(hasRecreateWaiver('-- migration-policy: allow-recreate - because.\n')).toBe(true);
+    expect(hasRecreateWaiver('-- migration-policy: allow-recreate: because.\n')).toBe(true);
+  });
+
+  it('is not triggered by the phrase appearing outside a comment', () => {
+    expect(hasRecreateWaiver(`INSERT INTO notes (body) VALUES ('allow-recreate');`)).toBe(false);
   });
 });
 
