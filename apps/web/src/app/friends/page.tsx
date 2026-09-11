@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Tag } from '@line-crm/shared'
 import { api } from '@/lib/api'
-import type { FriendListItem } from '@/lib/api'
+import type { FriendListItem, PersonListItem, PeopleChannel } from '@/lib/api'
 import Header from '@/components/layout/header'
 import FriendListTable from '@/components/friends/friend-list-table'
+import PeopleListTable from '@/components/friends/people-list-table'
 import CcPromptButton from '@/components/cc-prompt-button'
 import { useAccount } from '@/contexts/account-context'
 
@@ -32,10 +33,22 @@ const PAGE_SIZE = 20
 
 type SortMode = 'recent' | 'oldest'
 type ResponseFilter = 'all' | 'unhandled'
+// チャネル切替。'line' のときだけ従来の表(タグ・対応マーク・チャット導線)を出す。
+// 'all' / 'mail' は横断の表(GET /api/people)。人単位で並べられるのは LINE と
+// メルマガだけ(X / Threads は API にフォロワー一覧が無い。人数は「名簿規模」)。
+type ChannelFilter = 'all' | PeopleChannel
+
+const CHANNEL_TABS: { value: ChannelFilter; label: string }[] = [
+  { value: 'all', label: 'すべて' },
+  { value: 'line', label: 'LINE 友だち' },
+  { value: 'mail', label: 'メルマガ読者' },
+]
 
 export default function FriendsPage() {
   const { selectedAccountId } = useAccount()
   const [friends, setFriends] = useState<FriendListItem[]>([])
+  const [people, setPeople] = useState<PersonListItem[]>([])
+  const [channel, setChannel] = useState<ChannelFilter>('all')
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -61,6 +74,26 @@ export default function FriendsPage() {
     setLoading(true)
     setError('')
     try {
+      // 横断表示はチャネル共通の列だけを持つ /api/people を読む。
+      // タグ・対応マークは LINE 固有なので、その絞り込みは LINE 表示のときだけ効く。
+      if (channel !== 'line') {
+        const res = await api.people.list({
+          channel,
+          offset: (page - 1) * PAGE_SIZE,
+          limit: PAGE_SIZE,
+          accountId: selectedAccountId || undefined,
+          search: searchSubmitted || undefined,
+          sort: sortMode,
+        })
+        if (res.success) {
+          setPeople(res.data.items)
+          setTotal(res.data.total)
+          setHasNextPage(res.data.hasNextPage)
+        } else {
+          setError(res.error)
+        }
+        return
+      }
       const res = await api.friends.list({
         offset: String((page - 1) * PAGE_SIZE),
         limit: PAGE_SIZE,
@@ -83,7 +116,7 @@ export default function FriendsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, selectedTagId, selectedAccountId, searchSubmitted, sortMode, responseFilter])
+  }, [page, channel, selectedTagId, selectedAccountId, searchSubmitted, sortMode, responseFilter])
 
   useEffect(() => {
     loadTags()
@@ -127,13 +160,32 @@ export default function FriendsPage() {
   const handleSortChange = (v: SortMode) => updateAndResetPage(() => setSortMode(v))
   const handleResponseFilterChange = (v: ResponseFilter) => updateAndResetPage(() => setResponseFilter(v))
   const handleTagFilterChange = (v: string) => updateAndResetPage(() => setSelectedTagId(v))
+  const handleChannelChange = (v: ChannelFilter) => updateAndResetPage(() => setChannel(v))
 
   return (
     <div>
       <Header
         title="友だちリスト"
-        description="友だちの検索や、詳細情報の確認ができます。"
+        description="LINE 友だちとメルマガ読者を、ひとつの一覧で確認できます。"
       />
+
+      {/* チャネル切替 — LINE だけのときは従来の表、それ以外は横断の表 */}
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        {CHANNEL_TABS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => handleChannelChange(t.value)}
+            className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
+              channel === t.value
+                ? 'border-green-500 text-green-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {/* Search + sort bar — L-step style */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
@@ -142,7 +194,7 @@ export default function FriendsPage() {
             type="text"
             value={searchInput}
             onChange={(e) => handleSearchInputChange(e.target.value)}
-            placeholder="友だち名を検索"
+            placeholder={channel === 'mail' ? '名前かメールアドレスで検索' : '名前で検索'}
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <select
@@ -150,8 +202,8 @@ export default function FriendsPage() {
             onChange={(e) => handleSortChange(e.target.value as SortMode)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
           >
-            <option value="recent">友だち追加の新しい順</option>
-            <option value="oldest">友だち追加の古い順</option>
+            <option value="recent">登録の新しい順</option>
+            <option value="oldest">登録の古い順</option>
           </select>
           <button
             type="submit"
@@ -162,8 +214,9 @@ export default function FriendsPage() {
           </button>
         </form>
 
-        {/* Secondary filters — タグ + 対応マーク */}
+        {/* Secondary filters — タグ + 対応マーク (LINE 固有なので LINE 表示のときだけ) */}
         <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+          {channel === 'line' && (<>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-600 font-medium whitespace-nowrap">タグ:</label>
             <select
@@ -188,6 +241,7 @@ export default function FriendsPage() {
               <option value="unhandled">未対応のみ</option>
             </select>
           </div>
+          </>)}
           <span className="text-xs text-gray-500 ml-auto">
             {loading ? '読み込み中...' : `${total.toLocaleString('ja-JP')} 件`}
           </span>
@@ -219,7 +273,9 @@ export default function FriendsPage() {
           ))}
         </div>
       ) : (
-        <FriendListTable friends={friends} allTags={allTags} onRefresh={loadFriends} />
+        channel === 'line'
+          ? <FriendListTable friends={friends} allTags={allTags} onRefresh={loadFriends} />
+          : <PeopleListTable people={people} />
       )}
 
       {!loading && total > 0 && (

@@ -265,11 +265,18 @@ CREATE TABLE IF NOT EXISTS users (
   phone        TEXT,
   external_id  TEXT,
   display_name TEXT,
+  -- どこから来た人か(073)。名簿の正本は外(UTAGE 等)にあり、ここは影
+  source       TEXT,
+  source_list  TEXT,
+  source_label TEXT,
+  subscribed_at TEXT,
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
   updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_source ON users (source, source_list);
+CREATE INDEX IF NOT EXISTS idx_users_subscribed_at ON users (subscribed_at);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone);
 CREATE INDEX IF NOT EXISTS idx_users_external_id ON users (external_id);
 

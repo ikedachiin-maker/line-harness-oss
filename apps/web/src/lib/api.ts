@@ -306,6 +306,27 @@ export type MileageAdminOverview = {
   pagination: { total: number; limit: number; offset: number }
 }
 /** Friend list items, optionally hydrated with chat status (when ?includeChatStatus=true) */
+/** 友だち管理の横断一覧 (GET /api/people)。LINE 友だちとメルマガ読者を1列に並べる。 */
+export type PeopleChannel = 'line' | 'mail'
+export interface PersonListItem {
+  channel: PeopleChannel
+  id: string
+  displayName: string | null
+  pictureUrl: string | null
+  email: string | null
+  lineAccountId: string | null
+  sourceLabel: string | null
+  joinedAt: string
+}
+export interface PeopleListParams {
+  channel?: PeopleChannel | 'all'
+  search?: string
+  accountId?: string
+  limit?: number
+  offset?: number
+  sort?: 'recent' | 'oldest'
+}
+
 export type FriendListItem = FriendWithTags & Partial<{
   latestIncomingMessage: { content: string; messageType: string; createdAt: string } | null
   latestOutgoingAt: string | null
@@ -709,6 +730,20 @@ export const api = {
         `/api/line-accounts/${id}/follower-import/step`,
         { method: 'POST' },
       ),
+  },
+  people: {
+    list: (params?: PeopleListParams) => {
+      const query: Record<string, string> = {}
+      if (params?.channel) query.channel = params.channel
+      if (params?.search) query.search = params.search
+      if (params?.accountId) query.lineAccountId = params.accountId
+      if (params?.limit) query.limit = String(params.limit)
+      if (params?.offset) query.offset = String(params.offset)
+      if (params?.sort) query.sort = params.sort
+      return fetchApi<ApiResponse<PaginatedResponse<PersonListItem>>>(
+        '/api/people?' + new URLSearchParams(query)
+      )
+    },
   },
   audience: {
     overview: () => fetchApi<ApiResponse<AudienceOverview>>('/api/audience/overview'),

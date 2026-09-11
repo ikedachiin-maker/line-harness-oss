@@ -13,6 +13,7 @@ const dbMocks = {
   recoverStuckDeliveries: vi.fn(),
   // ingest route deps
   upsertUserByEmail: vi.fn(),
+  bulkUpsertUsersByEmail: vi.fn(),
   getEntryRouteByRefCode: vi.fn(),
   recordRefTracking: vi.fn(),
   trackConversion: vi.fn(),
@@ -57,6 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   dbMocks.getLineAccounts.mockResolvedValue([]);
   dbMocks.upsertUserByEmail.mockResolvedValue(USER);
+  dbMocks.bulkUpsertUsersByEmail.mockResolvedValue({ created: 1, updated: 0, skipped: 0 });
   dbMocks.getEntryRouteByRefCode.mockResolvedValue(null);
   dbMocks.recordRefTracking.mockResolvedValue({});
 });
@@ -289,5 +291,50 @@ describe('POST /api/ingest/utage/:token', () => {
     await postUtage(TOKEN, { email: 'reader@example.com' });
     expect(dbMocks.upsertUserByEmail).toHaveBeenCalledTimes(2);
     expect(dbMocks.upsertUserByEmail.mock.calls.every((c) => c[1].email === 'reader@example.com')).toBe(true);
+  });
+});
+
+// 名簿の一括取り込み。UTAGE の読者 13,000 人をここから入れる。
+describe('POST /api/ingest/subscribers', () => {
+  it('cleans each row and hands the batch to the db layer', async () => {
+    const res = await post('/api/ingest/subscribers', {
+      source: 'utage',
+      subscribers: [
+        { email: ' Reader@Example.com ', name: '読者', externalId: 'utage:r1', list: 'utage-mnp-consult', listLabel: 'mnp無料コンサル', subscribedAt: '2026-09-01 00:00:00' },
+        { email: 'broken', name: 'メール壊れ' },
+      ],
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    // 壊れた1行は db に渡さず skipped に数える
+    expect(body.data).toEqual({ created: 1, updated: 0, skipped: 1 });
+    expect(dbMocks.bulkUpsertUsersByEmail).toHaveBeenCalledWith(env.DB, [
+      {
+        email: 'Reader@Example.com',
+        displayName: '読者',
+        externalId: 'utage:r1',
+        source: 'utage',
+        sourceList: 'utage-mnp-consult',
+        sourceLabel: 'mnp無料コンサル',
+        subscribedAt: '2026-09-01 00:00:00',
+      },
+    ]);
+  });
+
+  it('rejects a batch over the limit before touching the database', async () => {
+    const subscribers = Array.from({ length: 501 }, (_, i) => ({ email: `u${i}@example.com` }));
+    const res = await post('/api/ingest/subscribers', { source: 'utage', subscribers });
+    expect(res.status).toBe(400);
+    expect(dbMocks.bulkUpsertUsersByEmail).not.toHaveBeenCalled();
+  });
+
+  it('requires a source and a non-empty list', async () => {
+    expect((await post('/api/ingest/subscribers', { subscribers: [{ email: 'a@example.com' }] })).status).toBe(400);
+    expect((await post('/api/ingest/subscribers', { source: 'utage', subscribers: [] })).status).toBe(400);
+  });
+
+  it('requires authentication', async () => {
+    const res = await post('/api/ingest/subscribers', { source: 'utage', subscribers: [{ email: 'a@example.com' }] }, { auth: false });
+    expect(res.status).toBe(401);
   });
 });

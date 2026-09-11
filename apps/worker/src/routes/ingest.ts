@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   upsertUserByEmail,
+  bulkUpsertUsersByEmail,
   getEntryRouteByRefCode,
   recordRefTracking,
   trackConversion,
@@ -135,6 +136,55 @@ ingest.post('/api/ingest/subscriber', async (c) => {
     return c.json({ success: true, data: result });
   } catch (err) {
     console.error('POST /api/ingest/subscriber error:', err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * POST /api/ingest/subscribers — 名簿をまとめて取り込む。
+ *
+ * Body: { source: 'utage', subscribers: [{ email, name?, externalId?, list?, listLabel?, subscribedAt? }] }
+ * 1回 500 件まで。email で upsert するので何度送っても行は増えない。
+ *
+ * /api/ingest/subscriber (単数) と違って ref のタッチは記録しない。
+ * 取り込みは「昔からいる人」を並べるためのもので、流入の計測ではないから。
+ * 新しく登録した人の流入は UTAGE の受け口(下)が1人ずつ拾う。
+ */
+const MAX_BULK = 500;
+
+ingest.post('/api/ingest/subscribers', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const source = cleanString(body.source, 40);
+    if (!source) return c.json({ success: false, error: 'source is required' }, 400);
+    const list = Array.isArray(body.subscribers) ? body.subscribers : [];
+    if (list.length === 0) return c.json({ success: false, error: 'subscribers must be a non-empty array' }, 400);
+    if (list.length > MAX_BULK) {
+      return c.json({ success: false, error: `subscribers must be at most ${MAX_BULK} per request` }, 400);
+    }
+
+    const rows = [];
+    let malformed = 0;
+    for (const s of list) {
+      const email = cleanString(s?.email, MAX_EMAIL);
+      if (!email || !isValidEmail(email)) { malformed++; continue; }
+      rows.push({
+        email,
+        displayName: cleanString(s?.name, MAX_NAME),
+        externalId: cleanString(s?.externalId, MAX_REF_CODE),
+        source,
+        sourceList: cleanString(s?.list, 100),
+        sourceLabel: cleanString(s?.listLabel, 100),
+        subscribedAt: cleanString(s?.subscribedAt, 40),
+      });
+    }
+
+    const result = rows.length
+      ? await bulkUpsertUsersByEmail(c.env.DB, rows)
+      : { created: 0, updated: 0, skipped: 0 };
+    return c.json({ success: true, data: { ...result, skipped: result.skipped + malformed } });
+  } catch (err) {
+    console.error('POST /api/ingest/subscribers error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });

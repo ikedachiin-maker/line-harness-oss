@@ -9,6 +9,11 @@ export interface User {
   phone: string | null;
   external_id: string | null;
   display_name: string | null;
+  // どこから来た人か(073)。NULL は出どころ不明(取り込み前からある行)。
+  source: string | null;
+  source_list: string | null;
+  source_label: string | null;
+  subscribed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -193,4 +198,107 @@ export async function getUserFriends(
     .bind(userId)
     .all<{ id: string; line_user_id: string; display_name: string | null; is_following: number }>();
   return result.results;
+}
+
+// =============================================================================
+// Bulk upsert — 名簿の取り込み用
+// =============================================================================
+
+export interface BulkSubscriberInput {
+  email: string;
+  displayName?: string | null;
+  externalId?: string | null;
+  source: string;
+  sourceList?: string | null;
+  sourceLabel?: string | null;
+  subscribedAt?: string | null;
+}
+
+export interface BulkUpsertResult {
+  created: number;
+  updated: number;
+  skipped: number;
+}
+
+/**
+ * email をキーに何件でも upsert する。UTAGE の読者 13,000 人を取り込むための口。
+ *
+ * 1件ずつ upsertUserByEmail を回すと 13,000 往復になるので、まず既存の email を
+ * まとめて引き、無いものは INSERT、あるものは空いている列だけ UPDATE を
+ * D1 の batch に積む。**既に入っている値は上書きしない**(display_name / external_id /
+ * source 系が埋まっていればそのまま)。取り込みは影であって正本ではないので、
+ * こちらで消したり書き換えたりしない。
+ *
+ * 同じ email が入力内に2回あれば後の行は skipped。冪等なので何度流しても行は増えない。
+ */
+export async function bulkUpsertUsersByEmail(
+  db: D1Database,
+  rows: BulkSubscriberInput[],
+): Promise<BulkUpsertResult> {
+  const result: BulkUpsertResult = { created: 0, updated: 0, skipped: 0 };
+  const seen = new Set<string>();
+  const clean: BulkSubscriberInput[] = [];
+  for (const r of rows) {
+    const email = String(r.email ?? '').trim().toLowerCase();
+    if (!email || !email.includes('@') || seen.has(email)) { result.skipped++; continue; }
+    seen.add(email);
+    clean.push({ ...r, email });
+  }
+  if (clean.length === 0) return result;
+
+  // 既存を引く。IN の要素数に上限があるので 100 ずつ
+  const existing = new Map<string, User>();
+  for (let i = 0; i < clean.length; i += 100) {
+    const slice = clean.slice(i, i + 100);
+    const placeholders = slice.map(() => '?').join(',');
+    const res = await db
+      .prepare(`SELECT * FROM users WHERE lower(email) IN (${placeholders})`)
+      .bind(...slice.map((r) => r.email))
+      .all<User>();
+    for (const u of res.results ?? []) {
+      const key = (u.email ?? '').toLowerCase();
+      // 同じ email が既に2行あるときは古いほうを採用(upsertUserByEmail と同じ)
+      if (!existing.has(key)) existing.set(key, u);
+    }
+  }
+
+  const now = jstNow();
+  const stmts: D1PreparedStatement[] = [];
+  for (const r of clean) {
+    const cur = existing.get(r.email);
+    if (!cur) {
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO users (id, email, phone, external_id, display_name, source, source_list, source_label, subscribed_at, created_at, updated_at)
+             VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            crypto.randomUUID(), r.email, r.externalId ?? null, r.displayName ?? null,
+            r.source, r.sourceList ?? null, r.sourceLabel ?? null, r.subscribedAt ?? null, now, now,
+          ),
+      );
+      result.created++;
+      continue;
+    }
+    const sets: string[] = [];
+    const binds: unknown[] = [];
+    if (!cur.display_name && r.displayName) { sets.push('display_name = ?'); binds.push(r.displayName); }
+    if (!cur.external_id && r.externalId) { sets.push('external_id = ?'); binds.push(r.externalId); }
+    if (!cur.source) {
+      sets.push('source = ?', 'source_list = ?', 'source_label = ?');
+      binds.push(r.source, r.sourceList ?? null, r.sourceLabel ?? null);
+    }
+    if (!cur.subscribed_at && r.subscribedAt) { sets.push('subscribed_at = ?'); binds.push(r.subscribedAt); }
+    if (sets.length === 0) { result.skipped++; continue; }
+    sets.push('updated_at = ?'); binds.push(now, cur.id);
+    stmts.push(db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...binds));
+    result.updated++;
+  }
+
+  // D1 の batch は1回に積める数に上限があるので 100 ずつ
+  for (let i = 0; i < stmts.length; i += 100) {
+    await db.batch(stmts.slice(i, i + 100));
+  }
+  return result;
 }

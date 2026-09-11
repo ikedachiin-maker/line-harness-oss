@@ -21,6 +21,7 @@ export * from './health';
 export * from './automations';
 export * from './entry-routes';
 export * from './audience';
+export * from './people';
 export * from './admin-users';
 export * from './tracked-links';
 export * from './forms';
