@@ -206,3 +206,88 @@ describe('POST /api/ingest/conversion', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// UTAGE の受け口。ここだけ資格情報が URL に載るので、開き方と閉じ方を厳しく見る。
+describe('POST /api/ingest/utage/:token', () => {
+  const TOKEN = 'u'.repeat(40);
+  const withToken = { ...env, UTAGE_INGEST_TOKEN: TOKEN } as typeof env;
+
+  async function postUtage(
+    token: string,
+    body: unknown,
+    e: typeof env = withToken,
+  ): Promise<Response> {
+    return worker.fetch(
+      new Request(`https://worker.example.com/api/ingest/utage/${token}`, {
+        method: 'POST',
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      }),
+      e,
+      { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext,
+    );
+  }
+
+  it('takes an opt-in with no Authorization header when the token matches', async () => {
+    const res = await postUtage(TOKEN, {
+      email: 'reader@example.com',
+      name: '読者',
+      refCode: 'x-post-01',
+      externalId: 'utage-9981',
+    });
+    expect(res.status).toBe(200);
+    expect(dbMocks.upsertUserByEmail).toHaveBeenCalledWith(env.DB, {
+      email: 'reader@example.com',
+      displayName: '読者',
+      externalId: 'utage-9981',
+    });
+    expect(dbMocks.recordRefTracking).toHaveBeenCalledWith(
+      env.DB,
+      expect.objectContaining({ refCode: 'x-post-01', userId: 'user-1' }),
+    );
+  });
+
+  it('rejects a wrong token without touching the database', async () => {
+    const res = await postUtage('w'.repeat(40), { email: 'reader@example.com' });
+    expect(res.status).toBe(401);
+    expect(dbMocks.upsertUserByEmail).not.toHaveBeenCalled();
+  });
+
+  // 長さ違いを 401 と区別できる形で返すと、token の長さが応答から読める。
+  it('rejects a token of the wrong length the same way', async () => {
+    const res = await postUtage('short', { email: 'reader@example.com' });
+    expect(res.status).toBe(401);
+    expect(dbMocks.upsertUserByEmail).not.toHaveBeenCalled();
+  });
+
+  // 設定し忘れたまま口だけ開いている、が一番まずい。
+  it('stays closed when UTAGE_INGEST_TOKEN is unset', async () => {
+    const res = await postUtage(TOKEN, { email: 'reader@example.com' }, env);
+    expect(res.status).toBe(404);
+    expect(dbMocks.upsertUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it('refuses a token shorter than the minimum even when it matches', async () => {
+    const weak = 'abc';
+    const res = await postUtage(weak, { email: 'reader@example.com' }, {
+      ...env,
+      UTAGE_INGEST_TOKEN: weak,
+    } as typeof env);
+    expect(res.status).toBe(404);
+    expect(dbMocks.upsertUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it('rejects a body with no usable email', async () => {
+    const res = await postUtage(TOKEN, { name: 'メールなし' });
+    expect(res.status).toBe(400);
+    expect(dbMocks.upsertUserByEmail).not.toHaveBeenCalled();
+  });
+
+  // 同じ人が2回オプトインしても users は email で1行に寄る(冪等)。
+  it('is idempotent across repeated opt-ins', async () => {
+    await postUtage(TOKEN, { email: 'reader@example.com' });
+    await postUtage(TOKEN, { email: 'reader@example.com' });
+    expect(dbMocks.upsertUserByEmail).toHaveBeenCalledTimes(2);
+    expect(dbMocks.upsertUserByEmail.mock.calls.every((c) => c[1].email === 'reader@example.com')).toBe(true);
+  });
+});

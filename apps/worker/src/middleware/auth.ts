@@ -220,6 +220,10 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
     path === '/setup' ||
     path === '/api/integrations/stripe/webhook' ||
     path.match(/^\/api\/webhooks\/incoming\/[^/]+\/receive$/) ||
+    // UTAGE opt-in bridge. UTAGE cannot send an Authorization header, so the
+    // credential rides in the path and the route verifies it itself
+    // (constant-time, fail-closed when UTAGE_INGEST_TOKEN is unset).
+    path.match(/^\/api\/ingest\/utage\/[^/]+$/) ||
     path === '/api/meet-callback' || // Meet Harness completion callback
     // Google OAuth redirects without admin headers. Route verifies a signed, expiring state.
     (path === '/api/booking/google-calendar/oauth/callback' && method === 'GET') ||

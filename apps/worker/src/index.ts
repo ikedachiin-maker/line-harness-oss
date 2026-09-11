@@ -134,6 +134,9 @@ export type Env = {
     // 404 を返すので、URL だけでは届かない。binding があればそちらを使う
     // (詳細は services/audience-collector.ts の HarnessSource.fetcher)。
     // 別アカウントの相手は今まで通り *_HARNESS_URL で叩く。
+    // UTAGE のオプトイン受け口 (/api/ingest/utage/:token) の合言葉。
+    // UTAGE は認証ヘッダを付けられないので URL に載せる。未設定なら口は開かない。
+    UTAGE_INGEST_TOKEN?: string;
     X_HARNESS_SERVICE?: Fetcher;
     IG_HARNESS_SERVICE?: Fetcher;
     THREADS_HARNESS_SERVICE?: Fetcher;
