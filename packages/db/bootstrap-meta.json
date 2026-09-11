@@ -75,7 +75,8 @@
     "068_media_inquiries.sql",
     "069_rich_menu_selected.sql",
     "070_channel_agnostic_conversions.sql",
-    "071_audience_snapshots.sql"
+    "071_audience_snapshots.sql",
+    "072_admin_password_login.sql"
   ],
-  "migrationCount": 76
+  "migrationCount": 77
 }

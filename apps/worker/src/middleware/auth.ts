@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
-import { getStaffByApiKey } from '@line-crm/db';
+import { getStaffByApiKey, resolveAdminSession } from '@line-crm/db';
+import type { AdminUser } from '@line-crm/db';
 import type { Env } from '../index.js';
 import type { AdminSameSite } from './admin-auth-config.js';
 
@@ -128,6 +129,25 @@ export async function authenticateApiToken(
   return null;
 }
 
+/**
+ * admin_users.role は TEXT なので、想定外の値が入りうる。役割が読めないときは
+ * 一番弱い 'staff' に落とす。判別できないものを owner に昇格させない。
+ */
+function normalizeAdminRole(role: string): AuthenticatedStaff['role'] {
+  return role === 'owner' || role === 'admin' ? role : 'staff';
+}
+
+/**
+ * must_change_password が立っている間でも通すパス。
+ * パスワード変更そのものと、画面が「変更が要る」と知るための session、
+ * それに logout (行き詰まったら出られるように)。
+ */
+const PASSWORD_CHANGE_ALLOWED = new Set([
+  '/api/auth/password',
+  '/api/auth/session',
+  '/api/auth/logout',
+]);
+
 export async function authMiddleware(c: Context<Env>, next: Next): Promise<Response | void> {
   // Skip auth for the LINE webhook endpoint — it uses signature verification instead
   // Skip auth for OpenAPI docs — public documentation
@@ -214,9 +234,29 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
 
   const bearer = bearerToken(c);
   const cookie = cookieToken(c);
-  const token = bearer ?? cookie;
 
-  const staff = await authenticateApiToken(c, token);
+  // 経路ごとに照合先が違う:
+  //   Bearer + API キー   … 機械 (SDK / MCP / ハーネス間ポーリング / 集計スクリプト)
+  //   Cookie + セッション券 … ブラウザからのログイン
+  //
+  // 以前は Cookie の中身が API キーそのものだった。それだと Cookie を盗まれた
+  // 時点で API キーを盗まれたのと同じで、しかもその1つだけを無効化できない
+  // (キー本体を回して機械側を全部作り直すしかない)。いまは Cookie には
+  // ランダムな入場券が入り、DB 側でいつでも失効させられる。
+  let staff = bearer ? await authenticateApiToken(c, bearer) : null;
+  let adminUser: AdminUser | null = null;
+
+  if (!staff && cookie) {
+    adminUser = await resolveAdminSession(c.env.DB, cookie);
+    if (adminUser) {
+      staff = {
+        id: adminUser.id,
+        name: adminUser.name ?? adminUser.email,
+        role: normalizeAdminRole(adminUser.role),
+      };
+    }
+  }
+
   if (!staff) {
     return c.json({ success: false, error: 'Unauthorized' }, 401);
   }
@@ -231,6 +271,15 @@ export async function authMiddleware(c: Context<Env>, next: Next): Promise<Respo
     if (!header || !expected || header !== expected) {
       return c.json({ success: false, error: 'CSRF token mismatch' }, 403);
     }
+  }
+
+  // 初期パスワードのまま他の操作をさせない。パスワードを変える導線と、
+  // 画面が自分の状態を知るための最小限だけ通す。
+  if (adminUser?.must_change_password && !PASSWORD_CHANGE_ALLOWED.has(path)) {
+    return c.json(
+      { success: false, error: 'password_change_required' },
+      403,
+    );
   }
 
   c.set('staff', staff);

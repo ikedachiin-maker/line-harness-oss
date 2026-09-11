@@ -221,12 +221,40 @@ CREATE INDEX IF NOT EXISTS idx_auto_replies_template_id ON auto_replies(template
 -- ============================================================
 -- Admin Users
 -- ============================================================
+-- 管理画面のログイン (メールアドレス + パスワード)。
+-- 機械の認証は Bearer <API キー> のままで、ここは通らない。
+-- 経緯は migrations/072_admin_password_login.sql
 CREATE TABLE IF NOT EXISTS admin_users (
-  id            TEXT PRIMARY KEY,
-  email         TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
+  id                   TEXT PRIMARY KEY,
+  email                TEXT NOT NULL UNIQUE,
+  -- pbkdf2$sha256$<iterations>$<salt_b64>$<hash_b64>
+  password_hash        TEXT NOT NULL,
+  name                 TEXT,
+  role                 TEXT NOT NULL DEFAULT 'owner',
+  is_active            INTEGER NOT NULL DEFAULT 1,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
+  last_login_at        TEXT,
+  failed_attempts      INTEGER NOT NULL DEFAULT 0,
+  locked_until         TEXT,
+  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
+  updated_at           TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_users_email_lower ON admin_users (lower(email));
+
+-- Cookie に入るのはランダムな入場券。DB にはその SHA-256 だけを置くので、
+-- DB が漏れてもログインできる券は作れない。
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash    TEXT PRIMARY KEY,
+  admin_user_id TEXT NOT NULL REFERENCES admin_users (id) ON DELETE CASCADE,
+  created_at    TEXT NOT NULL,
+  expires_at    TEXT NOT NULL,
+  last_seen_at  TEXT NOT NULL,
+  user_agent    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions (admin_user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expiry ON admin_sessions (expires_at);
 
 -- ============================================================
 -- Round 2: Internal UUID Users (Cross-Account)

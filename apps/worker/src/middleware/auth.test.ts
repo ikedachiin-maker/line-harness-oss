@@ -6,12 +6,69 @@ import { resolveCorsOrigin } from './admin-auth-config.js';
 import { adminAuth } from '../routes/admin-auth.js';
 import type { Env } from '../index.js';
 
+// ログインはメールアドレス + パスワードになった。パスワードの伸長やセッションの
+// 保存そのものは packages/db/test/admin-users.test.ts が実物の SQLite で見ている。
+// ここで見るのは Cookie の属性・CSRF・経路ごとの認証の分かれ方なので、db 層は
+// 最小の偽物で足りる。
+const SESSION_TOKEN = 'session-token-abc';
+const ADMIN = {
+  id: 'admin-1',
+  email: 'ikeda@example.com',
+  password_hash: 'pbkdf2$sha256$1$c2FsdA==$aGFzaA==',
+  name: '池田',
+  role: 'admin' as const,
+  is_active: 1,
+  must_change_password: 0,
+  last_login_at: null,
+  failed_attempts: 0,
+  locked_until: null,
+  created_at: '2026-09-11T00:00:00.000+09:00',
+  updated_at: null,
+};
+
 vi.mock('@line-crm/db', () => ({
   getStaffByApiKey: vi.fn(async (_db: unknown, token: string) => {
     if (token !== 'staff-key') return null;
     return { id: 'staff-1', name: 'Staff One', role: 'admin' };
   }),
+  authenticateAdminUser: vi.fn(async (_db: unknown, email: string, password: string) => {
+    if (email === 'locked@example.com') {
+      return { ok: false, reason: 'locked', retryAfterSeconds: 900 };
+    }
+    if (email !== ADMIN.email || password !== 'correct horse battery') {
+      return { ok: false, reason: 'invalid_credentials' };
+    }
+    return { ok: true, user: ADMIN };
+  }),
+  createAdminSession: vi.fn(async () => ({
+    token: SESSION_TOKEN,
+    expiresAt: '2026-09-18T00:00:00.000Z',
+  })),
+  resolveAdminSession: vi.fn(async (_db: unknown, token: string) =>
+    token === SESSION_TOKEN ? ADMIN : null,
+  ),
+  revokeAdminSession: vi.fn(async () => {}),
+  getAdminUserById: vi.fn(async (_db: unknown, id: string) => (id === ADMIN.id ? ADMIN : null)),
+  getAdminUserByEmail: vi.fn(async () => null),
+  createAdminUser: vi.fn(async () => ADMIN),
+  listAdminUsers: vi.fn(async () => []),
+  countAdminUsers: vi.fn(async () => 1),
+  setAdminUserPassword: vi.fn(async () => {}),
+  deactivateAdminUser: vi.fn(async () => {}),
+  verifyPassword: vi.fn(async (password: string) => ({
+    valid: password === 'correct horse battery',
+    needsRehash: false,
+  })),
+  validatePassword: vi.fn((password: unknown) =>
+    typeof password === 'string' && password.length >= 12 ? null : 'パスワードは12文字以上にしてください',
+  ),
+  normalizeEmail: (email: unknown) =>
+    typeof email === 'string' ? email.trim().toLowerCase() : '',
+  isValidEmail: (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+  SESSION_TTL_SECONDS: 604800,
 }));
+
+const CREDENTIALS = { email: ADMIN.email, password: 'correct horse battery' };
 
 const PAGES = 'https://your-admin.pages.dev';
 const WORKERS = 'https://your-worker.your-subdomain.workers.dev';
@@ -74,17 +131,19 @@ describe('admin login cookie attributes', () => {
   test('cross-site login sets HttpOnly Secure SameSite=None session + readable CSRF cookie', async () => {
     const res = await app().request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ apiKey: 'staff-key' }),
+      body: JSON.stringify(CREDENTIALS),
       headers: { 'Content-Type': 'application/json' },
     }, crossSiteEnv());
 
     expect(res.status).toBe(200);
     const body = await res.json() as { success: boolean; data: { id: string }; csrfToken: string };
-    expect(body.data).toMatchObject({ id: 'staff-1', role: 'admin' });
+    expect(body.data).toMatchObject({ id: 'admin-1', role: 'admin' });
     expect(body.csrfToken).toBeTruthy();
 
     const session = cookieFor(res, 'lh_admin_session') ?? '';
-    expect(session).toContain('lh_admin_session=staff-key');
+    // Cookie に入るのは入場券であって API キーではない (盗まれても個別に切れる)
+    expect(session).toContain(`lh_admin_session=${SESSION_TOKEN}`);
+    expect(session).not.toContain('env-key');
     expect(session).toContain('HttpOnly');
     expect(session).toContain('Secure');
     expect(session).toContain('SameSite=None');
@@ -99,7 +158,7 @@ describe('admin login cookie attributes', () => {
   test('same-site (custom domain) login uses SameSite=Lax', async () => {
     const res = await app().request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ apiKey: 'staff-key' }),
+      body: JSON.stringify(CREDENTIALS),
       headers: { 'Content-Type': 'application/json' },
     }, env({ ADMIN_ORIGIN: 'https://admin.example.com', WORKER_URL: 'https://api.example.com' }));
 
@@ -107,10 +166,10 @@ describe('admin login cookie attributes', () => {
     expect(cookieFor(res, 'lh_admin_session') ?? '').toContain('SameSite=Lax');
   });
 
-  test('invalid api key is rejected without a cookie', async () => {
+  test('a wrong password is rejected without a cookie', async () => {
     const res = await app().request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ apiKey: 'wrong' }),
+      body: JSON.stringify({ email: ADMIN.email, password: 'wrong password' }),
       headers: { 'Content-Type': 'application/json' },
     }, crossSiteEnv());
     expect(res.status).toBe(401);
@@ -122,7 +181,7 @@ describe('topology guard', () => {
   test('cross-site WITHOUT opt-in refuses login with an actionable error', async () => {
     const res = await app().request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ apiKey: 'staff-key' }),
+      body: JSON.stringify(CREDENTIALS),
       headers: { 'Content-Type': 'application/json' },
     }, env({ ADMIN_ORIGIN: PAGES })); // no ADMIN_ALLOW_CROSS_SITE
 
@@ -137,11 +196,11 @@ describe('topology guard', () => {
 describe('protected API access', () => {
   test('accepts the admin session cookie (GET, no CSRF needed)', async () => {
     const res = await app().request('/api/protected', {
-      headers: { Cookie: 'lh_admin_session=staff-key' },
+      headers: { Cookie: `lh_admin_session=${SESSION_TOKEN}` },
     }, crossSiteEnv());
     expect(res.status).toBe(200);
     const body = await res.json() as { data: { id: string } };
-    expect(body.data).toMatchObject({ id: 'staff-1', role: 'admin' });
+    expect(body.data).toMatchObject({ id: 'admin-1', role: 'admin' });
   });
 
   test('still accepts Bearer tokens for SDK / MCP callers', async () => {
@@ -226,7 +285,7 @@ describe('CSRF protection', () => {
   test('cookie-authenticated POST without an X-CSRF-Token is rejected', async () => {
     const res = await app().request('/api/protected', {
       method: 'POST',
-      headers: { Cookie: 'lh_admin_session=staff-key; lh_csrf=token-abc' },
+      headers: { Cookie: `lh_admin_session=${SESSION_TOKEN}; lh_csrf=token-abc` },
     }, crossSiteEnv());
     expect(res.status).toBe(403);
     expect((await res.json() as { error: string }).error).toMatch(/csrf/i);
@@ -236,7 +295,7 @@ describe('CSRF protection', () => {
     const res = await app().request('/api/protected', {
       method: 'POST',
       headers: {
-        Cookie: 'lh_admin_session=staff-key; lh_csrf=token-abc',
+        Cookie: `lh_admin_session=${SESSION_TOKEN}; lh_csrf=token-abc`,
         'X-CSRF-Token': 'token-WRONG',
       },
     }, crossSiteEnv());
@@ -247,7 +306,7 @@ describe('CSRF protection', () => {
     const res = await app().request('/api/protected', {
       method: 'POST',
       headers: {
-        Cookie: 'lh_admin_session=staff-key; lh_csrf=token-abc',
+        Cookie: `lh_admin_session=${SESSION_TOKEN}; lh_csrf=token-abc`,
         'X-CSRF-Token': 'token-abc',
       },
     }, crossSiteEnv());
@@ -277,17 +336,20 @@ describe('logout', () => {
 describe('session endpoint', () => {
   test('returns the staff identity and a CSRF token', async () => {
     const res = await app().request('/api/auth/session', {
-      headers: { Cookie: 'lh_admin_session=staff-key; lh_csrf=token-abc' },
+      headers: { Cookie: `lh_admin_session=${SESSION_TOKEN}; lh_csrf=token-abc` },
     }, crossSiteEnv());
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: { id: string }; csrfToken: string };
-    expect(body.data).toMatchObject({ id: 'staff-1' });
+    const body = await res.json() as {
+      data: { id: string; mustChangePassword: boolean };
+      csrfToken: string;
+    };
+    expect(body.data).toMatchObject({ id: 'admin-1', mustChangePassword: false });
     expect(body.csrfToken).toBe('token-abc');
   });
 
   test('mints and sets a CSRF cookie when none is present', async () => {
     const res = await app().request('/api/auth/session', {
-      headers: { Cookie: 'lh_admin_session=staff-key' },
+      headers: { Cookie: `lh_admin_session=${SESSION_TOKEN}` },
     }, crossSiteEnv());
     expect(res.status).toBe(200);
     const body = await res.json() as { csrfToken: string };
