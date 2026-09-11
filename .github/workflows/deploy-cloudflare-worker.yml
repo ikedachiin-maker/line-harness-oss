@@ -79,6 +79,14 @@ jobs:
           ADMIN_ORIGIN: ${{ vars.ADMIN_ORIGIN }}
           ADMIN_ALLOW_CROSS_SITE: ${{ vars.ADMIN_ALLOW_CROSS_SITE }}
           WORKER_URL: ${{ vars.WORKER_URL }}
+          # Sibling harness URLs for the audience roll-up (GET /api/audience
+          # polling). Optional; each is paired with a *_HARNESS_API_KEY secret
+          # set via `wrangler secret put`. Baked in here for the same reason as
+          # the CORS vars: a dashboard-set var is dropped on the next deploy.
+          X_HARNESS_URL: ${{ vars.X_HARNESS_URL }}
+          IG_HARNESS_URL: ${{ vars.IG_HARNESS_URL }}
+          THREADS_HARNESS_URL: ${{ vars.THREADS_HARNESS_URL }}
+          MAIL_HARNESS_URL: ${{ vars.MAIL_HARNESS_URL }}
         run: |
           test -n "$D1_DATABASE_ID"
           cd apps/worker
@@ -99,6 +107,15 @@ jobs:
             ' dist/line_harness/wrangler.json > "$tmp" && mv "$tmp" dist/line_harness/wrangler.json
             echo "Patched admin CORS vars: ADMIN_ORIGIN=$ADMIN_ORIGIN ADMIN_ALLOW_CROSS_SITE=${ADMIN_ALLOW_CROSS_SITE:-true}"
           fi
+          # Inject sibling harness URLs (audience roll-up) when set.
+          for name in X_HARNESS_URL IG_HARNESS_URL THREADS_HARNESS_URL MAIL_HARNESS_URL; do
+            val="${!name}"
+            if [ -n "$val" ]; then
+              tmp="$(mktemp)"
+              jq --arg k "$name" --arg v "$val" '.vars[$k] = $v' dist/line_harness/wrangler.json > "$tmp" && mv "$tmp" dist/line_harness/wrangler.json
+              echo "Patched harness var: $name=$val"
+            fi
+          done
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
