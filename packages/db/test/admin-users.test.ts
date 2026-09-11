@@ -25,6 +25,7 @@ import {
   MAX_FAILED_ATTEMPTS,
   MIN_PASSWORD_LENGTH,
   PBKDF2_ITERATIONS,
+  PBKDF2_ITERATIONS_PER_ROUND,
 } from '../src/admin-users.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -92,9 +93,9 @@ function asD1(sqlite: Database.Database): D1Database {
   } as unknown as D1Database;
 }
 
-// 本物の反復回数だと1ハッシュ 30ms 超で、この本数だとテストが数十秒かかる。
-// アルゴリズムの正しさは回数に依存しないので、回数は別に1本だけ確かめる。
-const FAST = 1000;
+// 本物の計算量だとこの本数でテストが数十秒かかる。アルゴリズムの正しさは
+// 計算量に依存しないので、既定値そのものは別に1本だけ確かめる。
+const FAST = { iterationsPerRound: 1000, rounds: 1 };
 
 let sqlite: Database.Database;
 let db: D1Database;
@@ -128,10 +129,11 @@ describe('password hashing', () => {
 
   test('records the algorithm and iteration count in the stored value', async () => {
     const stored = await hashPassword('some password here', FAST);
-    const [scheme, hash, iterations] = stored.split('$');
+    const [scheme, hash, perRound, rounds] = stored.split('$');
     expect(scheme).toBe('pbkdf2');
     expect(hash).toBe('sha256');
-    expect(Number(iterations)).toBe(FAST);
+    expect(Number(perRound)).toBe(FAST.iterationsPerRound);
+    expect(Number(rounds)).toBe(FAST.rounds);
   });
 
   // 回数を上げたとき、古い行をその場で検証できないと全員のパスワードを
@@ -144,9 +146,38 @@ describe('password hashing', () => {
   });
 
   test('flags no rehash when stored at the current cost', async () => {
-    const stored = await hashPassword('some password here', PBKDF2_ITERATIONS);
+    const stored = await hashPassword('some password here');
     expect((await verifyPassword('some password here', stored)).needsRehash).toBe(false);
-  }, 20_000);
+  }, 30_000);
+
+  // Cloudflare 本番は 100,000 回を超える導出を拒む (NotSupportedError)。
+  // 既定値がそれを超えていると、本番でだけログインが 500 になる。
+  // `wrangler dev --local` はこの制限を課さないので、ここで釘を打っておく。
+  test('never asks the platform for more iterations than it allows', async () => {
+    expect(PBKDF2_ITERATIONS_PER_ROUND).toBeLessThanOrEqual(100_000);
+    const stored = await hashPassword('some password here');
+    expect(Number(stored.split('$')[2])).toBeLessThanOrEqual(100_000);
+  }, 30_000);
+
+  // 上限超えの値が入った行は、この環境では検証しようが無い。
+  // 例外ではなく不一致として返らないと、壊れた行1つでログイン全体が 500 になる。
+  test('treats an over-limit stored hash as a mismatch, not a crash', async () => {
+    const overLimit = `pbkdf2$sha256$600000$1$${btoa('salt')}$${btoa('hash')}`;
+    await expect(verifyPassword('anything', overLimit)).resolves.toEqual({
+      valid: false,
+      needsRehash: false,
+    });
+  });
+
+  // rounds を持たなかった頃の5列形式も読めること。
+  test('still verifies a legacy hash with no rounds field', async () => {
+    const salt = 'c2FsdHNhbHRzYWx0c2E=';
+    const legacy = await hashPassword('legacy password', { iterationsPerRound: 1000, rounds: 1 });
+    const asFiveColumn = legacy.split('$').filter((_, i) => i !== 3).join('$');
+    expect(asFiveColumn.split('$')).toHaveLength(5);
+    expect((await verifyPassword('legacy password', asFiveColumn)).valid).toBe(true);
+    expect(salt).toBeTruthy();
+  });
 
   // 壊れた行1つでログイン全体が 500 になっては困る。
   test('treats a malformed stored value as a mismatch, not an error', async () => {

@@ -21,15 +21,29 @@ import { jstNow } from './utils.js';
 const encoder = new TextEncoder();
 
 /**
- * PBKDF2 の反復回数。OWASP の PBKDF2-HMAC-SHA256 推奨値。
+ * **Cloudflare 本番の PBKDF2 は 100,000 回で打ち止め。**
+ * 超えると NotSupportedError:
+ *   "Pbkdf2 failed: iteration counts above 100000 are not supported"
  *
- * workerd 実機で計測して 600,000 回 = 約36ms だった (2026-09-11)。
- * ログインは頻度が低いので、この程度は払ってよい。
+ * ⚠ `wrangler dev --local` はこの制限を課さない。手元では 1,000,000 回でも
+ *   通ってしまうので、**ローカルで測った値をそのまま本番に持っていくと落ちる**
+ *   (2026-09-11 に実際に踏んだ)。
  *
- * 保存形式に回数を含めてあるので、あとで上げても既存のハッシュは壊れない。
- * 上げたときは、次回ログイン成功時に新しい回数で入れ直す (rehash) 設計。
+ * OWASP が PBKDF2-HMAC-SHA256 に求める 600,000 回には1回では届かないので、
+ * 100,000 回の導出を鎖状に繰り返して work factor を積む。
+ *
+ *   h1 = PBKDF2(password, salt, 100k)
+ *   h2 = PBKDF2(h1,       salt, 100k)   … これを ROUNDS 回
+ *
+ * 各呼び出しが上限以下なので本番でも通り、総計算量は掛け算で効く。
+ * 新しい構成を発明しているわけではなく、PBKDF2 が内部でやっている反復を
+ * 外側で足しているだけ。
  */
-export const PBKDF2_ITERATIONS = 600_000;
+export const PBKDF2_ITERATIONS_PER_ROUND = 100_000;
+export const PBKDF2_ROUNDS = 6;
+
+/** 実効の反復回数 (表示・比較用)。 */
+export const PBKDF2_ITERATIONS = PBKDF2_ITERATIONS_PER_ROUND * PBKDF2_ROUNDS;
 
 const SALT_BYTES = 16;
 const KEY_BITS = 256;
@@ -96,35 +110,52 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 // ── パスワード ───────────────────────────────────────────────────────────────
 
-async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  );
+async function deriveOnce(
+  material: BufferSource,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
     key,
     KEY_BITS,
   );
-  return toBase64(new Uint8Array(bits));
+  return new Uint8Array(bits);
 }
 
 /**
- * 保存形式: `pbkdf2$sha256$<iterations>$<salt_b64>$<hash_b64>`
+ * 100,000 回の導出を rounds 回つないで伸ばす。上の定数のコメント参照。
+ * 1回目だけパスワードを材料にし、以降は前段の出力を材料にする。
+ */
+async function derive(
+  password: string,
+  salt: Uint8Array,
+  iterationsPerRound: number,
+  rounds: number,
+): Promise<string> {
+  let material: BufferSource = encoder.encode(password);
+  for (let i = 0; i < rounds; i++) {
+    material = await deriveOnce(material, salt, iterationsPerRound);
+  }
+  return toBase64(material as Uint8Array);
+}
+
+/**
+ * 保存形式: `pbkdf2$sha256$<iterationsPerRound>$<rounds>$<salt_b64>$<hash_b64>`
  *
- * アルゴリズムと回数を値の中に書いておく。こうしておくと、あとで回数を上げても
- * 既存の行をその場で検証でき、移行のために全員のパスワードを再設定させずに済む。
+ * アルゴリズムと計算量を値の中に書いておく。こうしておくと、あとで強度を
+ * 上げても既存の行をその場で検証でき、全員のパスワードを再設定させずに済む。
  */
 export async function hashPassword(
   password: string,
-  iterations: number = PBKDF2_ITERATIONS,
+  opts: { iterationsPerRound?: number; rounds?: number } = {},
 ): Promise<string> {
+  const iterationsPerRound = opts.iterationsPerRound ?? PBKDF2_ITERATIONS_PER_ROUND;
+  const rounds = opts.rounds ?? PBKDF2_ROUNDS;
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const hash = await derive(password, salt, iterations);
-  return `pbkdf2$sha256$${iterations}$${toBase64(salt)}$${hash}`;
+  const hash = await derive(password, salt, iterationsPerRound, rounds);
+  return `pbkdf2$sha256$${iterationsPerRound}$${rounds}$${toBase64(salt)}$${hash}`;
 }
 
 export interface PasswordVerification {
@@ -138,28 +169,51 @@ export async function verifyPassword(
   stored: string,
 ): Promise<PasswordVerification> {
   const parts = String(stored ?? '').split('$');
-  // 想定外の形式は「不一致」として扱う。ここで throw すると、壊れた行1つで
-  // ログイン全体が 500 になる。
-  if (parts.length !== 5 || parts[0] !== 'pbkdf2' || parts[1] !== 'sha256') {
+  if (parts[0] !== 'pbkdf2' || parts[1] !== 'sha256') {
     return { valid: false, needsRehash: false };
   }
 
-  const iterations = Number(parts[2]);
-  if (!Number.isInteger(iterations) || iterations < 1) {
+  // 5列は rounds を持たなかった頃の形。rounds=1 として読む。
+  const legacy = parts.length === 5;
+  if (!legacy && parts.length !== 6) return { valid: false, needsRehash: false };
+
+  const iterationsPerRound = Number(parts[2]);
+  const rounds = legacy ? 1 : Number(parts[3]);
+  const saltB64 = legacy ? parts[3] : parts[4];
+  const expected = legacy ? parts[4] : parts[5];
+
+  if (
+    !Number.isInteger(iterationsPerRound) || iterationsPerRound < 1
+    || !Number.isInteger(rounds) || rounds < 1 || rounds > 32
+  ) {
+    return { valid: false, needsRehash: false };
+  }
+
+  // 本番は 100,000 回を超える導出を拒む。そういう値が入っている行は
+  // この環境では検証しようが無いので、例外ではなく不一致として返す
+  // (throw すると壊れた行1つでログイン全体が 500 になる)。
+  if (iterationsPerRound > PBKDF2_ITERATIONS_PER_ROUND) {
     return { valid: false, needsRehash: false };
   }
 
   let salt: Uint8Array;
   try {
-    salt = fromBase64(parts[3]);
+    salt = fromBase64(saltB64);
   } catch {
     return { valid: false, needsRehash: false };
   }
 
-  const candidate = await derive(password, salt, iterations);
+  let candidate: string;
+  try {
+    candidate = await derive(password, salt, iterationsPerRound, rounds);
+  } catch {
+    // 実行環境が拒む組み合わせ。落とさずに不一致扱いにする。
+    return { valid: false, needsRehash: false };
+  }
+
   return {
-    valid: timingSafeEqual(candidate, parts[4]),
-    needsRehash: iterations < PBKDF2_ITERATIONS,
+    valid: timingSafeEqual(candidate, expected),
+    needsRehash: iterationsPerRound * rounds < PBKDF2_ITERATIONS,
   };
 }
 
