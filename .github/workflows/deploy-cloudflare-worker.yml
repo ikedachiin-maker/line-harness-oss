@@ -98,6 +98,13 @@ jobs:
           IG_HARNESS_SERVICE: ${{ vars.IG_HARNESS_SERVICE }}
           THREADS_HARNESS_SERVICE: ${{ vars.THREADS_HARNESS_SERVICE }}
           MAIL_HARNESS_SERVICE: ${{ vars.MAIL_HARNESS_SERVICE }}
+          # A second Worker on the same channel (Threads is one-deploy-per-
+          # account, so two accounts means two Workers). Numbered suffixes
+          # continue as _3, _4 ... in the collector; add rows here if needed.
+          THREADS_HARNESS_URL_2: ${{ vars.THREADS_HARNESS_URL_2 }}
+          THREADS_HARNESS_SERVICE_2: ${{ vars.THREADS_HARNESS_SERVICE_2 }}
+          X_HARNESS_URL_2: ${{ vars.X_HARNESS_URL_2 }}
+          X_HARNESS_SERVICE_2: ${{ vars.X_HARNESS_SERVICE_2 }}
         run: |
           test -n "$D1_DATABASE_ID"
           cd apps/worker
@@ -119,7 +126,7 @@ jobs:
             echo "Patched admin CORS vars: ADMIN_ORIGIN=$ADMIN_ORIGIN ADMIN_ALLOW_CROSS_SITE=${ADMIN_ALLOW_CROSS_SITE:-true}"
           fi
           # Inject sibling harness URLs (audience roll-up) when set.
-          for name in X_HARNESS_URL IG_HARNESS_URL THREADS_HARNESS_URL MAIL_HARNESS_URL; do
+          for name in X_HARNESS_URL IG_HARNESS_URL THREADS_HARNESS_URL MAIL_HARNESS_URL THREADS_HARNESS_URL_2 X_HARNESS_URL_2; do
             val="${!name}"
             if [ -n "$val" ]; then
               tmp="$(mktemp)"
@@ -130,7 +137,7 @@ jobs:
           # Inject service bindings for siblings in the same account. Kept out of
           # wrangler.toml on purpose: a binding naming a Worker that does not
           # exist fails the deploy, and a fork has none of these.
-          for name in X_HARNESS_SERVICE IG_HARNESS_SERVICE THREADS_HARNESS_SERVICE MAIL_HARNESS_SERVICE; do
+          for name in X_HARNESS_SERVICE IG_HARNESS_SERVICE THREADS_HARNESS_SERVICE MAIL_HARNESS_SERVICE THREADS_HARNESS_SERVICE_2 X_HARNESS_SERVICE_2; do
             val="${!name}"
             if [ -n "$val" ]; then
               tmp="$(mktemp)"

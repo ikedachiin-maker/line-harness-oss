@@ -148,45 +148,44 @@ export async function collectAudience(
   return { recorded, failures };
 }
 
-/** env から設定済みのハーネスだけを取り出す。未設定は静かに飛ばす。 */
-export function harnessSourcesFromEnv(env: {
-  X_HARNESS_URL?: string;
-  X_HARNESS_API_KEY?: string;
-  X_HARNESS_SERVICE?: { fetch: typeof fetch };
-  IG_HARNESS_URL?: string;
-  IG_HARNESS_API_KEY?: string;
-  IG_HARNESS_SERVICE?: { fetch: typeof fetch };
-  THREADS_HARNESS_URL?: string;
-  THREADS_HARNESS_API_KEY?: string;
-  THREADS_HARNESS_SERVICE?: { fetch: typeof fetch };
-  MAIL_HARNESS_URL?: string;
-  MAIL_HARNESS_API_KEY?: string;
-  MAIL_HARNESS_SERVICE?: { fetch: typeof fetch };
-}): HarnessSource[] {
-  return [
-    {
-      channel: 'x',
-      url: env.X_HARNESS_URL,
-      apiKey: env.X_HARNESS_API_KEY,
-      fetcher: env.X_HARNESS_SERVICE,
-    },
-    {
-      channel: 'instagram',
-      url: env.IG_HARNESS_URL,
-      apiKey: env.IG_HARNESS_API_KEY,
-      fetcher: env.IG_HARNESS_SERVICE,
-    },
-    {
-      channel: 'threads',
-      url: env.THREADS_HARNESS_URL,
-      apiKey: env.THREADS_HARNESS_API_KEY,
-      fetcher: env.THREADS_HARNESS_SERVICE,
-    },
-    {
-      channel: 'mail',
-      url: env.MAIL_HARNESS_URL,
-      apiKey: env.MAIL_HARNESS_API_KEY,
-      fetcher: env.MAIL_HARNESS_SERVICE,
-    },
-  ];
+/**
+ * env から設定済みのハーネスだけを取り出す。未設定は静かに飛ばす。
+ *
+ * 同じチャネルに複数の Worker があることがある。Threads は1デプロイ＝1アカウントの
+ * 構造なので、アカウントが2つあれば Worker も2つ。`THREADS_HARNESS_SERVICE` に加えて
+ * `THREADS_HARNESS_SERVICE_2`, `_3` … と番号を足せば、同じチャネルの2本目以降として
+ * 集める。URL / API_KEY / SERVICE の3つは番号ごとに独立に読む。
+ */
+const CHANNEL_ENV_PREFIX: Record<string, string> = {
+  x: 'X_HARNESS',
+  instagram: 'IG_HARNESS',
+  threads: 'THREADS_HARNESS',
+  mail: 'MAIL_HARNESS',
+};
+
+const MAX_SOURCES_PER_CHANNEL = 8;
+
+export function harnessSourcesFromEnv(env: Record<string, unknown>): HarnessSource[] {
+  const out: HarnessSource[] = [];
+  for (const [channel, prefix] of Object.entries(CHANNEL_ENV_PREFIX)) {
+    for (let n = 1; n <= MAX_SOURCES_PER_CHANNEL; n++) {
+      const suffix = n === 1 ? '' : `_${n}`;
+      const url = env[`${prefix}_URL${suffix}`];
+      const apiKey = env[`${prefix}_API_KEY${suffix}`];
+      const fetcher = env[`${prefix}_SERVICE${suffix}`];
+      const source: HarnessSource = {
+        channel,
+        url: typeof url === 'string' ? url : undefined,
+        apiKey: typeof apiKey === 'string' ? apiKey : undefined,
+        fetcher: fetcher && typeof (fetcher as { fetch?: unknown }).fetch === 'function'
+          ? (fetcher as { fetch: typeof fetch })
+          : undefined,
+      };
+      // 1本目は未設定でも並べる (画面の「まだ繋がっていないチャネル」に出すため)。
+      // 2本目以降は、何か設定があるときだけ。
+      if (n === 1 || source.url || source.apiKey || source.fetcher) out.push(source);
+      else break;
+    }
+  }
+  return out;
 }

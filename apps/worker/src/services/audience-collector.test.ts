@@ -68,6 +68,39 @@ describe('harnessSourcesFromEnv', () => {
     });
     expect(sources.find((s) => s.channel === 'mail')?.fetcher).toBe(binding);
   });
+
+  // Threads は1デプロイ＝1アカウント。2アカウントあれば Worker も2つ。
+  it('picks up numbered siblings on the same channel', () => {
+    const a = { fetch: vi.fn() } as unknown as { fetch: typeof fetch };
+    const b = { fetch: vi.fn() } as unknown as { fetch: typeof fetch };
+    const sources = harnessSourcesFromEnv({
+      THREADS_HARNESS_API_KEY: 'k1',
+      THREADS_HARNESS_SERVICE: a,
+      THREADS_HARNESS_API_KEY_2: 'k2',
+      THREADS_HARNESS_SERVICE_2: b,
+    });
+    const threads = sources.filter((s) => s.channel === 'threads');
+    expect(threads).toHaveLength(2);
+    expect(threads[0]).toMatchObject({ apiKey: 'k1', fetcher: a });
+    expect(threads[1]).toMatchObject({ apiKey: 'k2', fetcher: b });
+    // 他チャネルは1本目だけ (未設定でも並ぶ)
+    expect(sources.filter((s) => s.channel === 'x')).toHaveLength(1);
+  });
+
+  it('stops at the first gap in the numbering', () => {
+    const sources = harnessSourcesFromEnv({
+      THREADS_HARNESS_URL: 'https://t1.example',
+      THREADS_HARNESS_API_KEY: 'k1',
+      THREADS_HARNESS_URL_3: 'https://t3.example',
+      THREADS_HARNESS_API_KEY_3: 'k3',
+    });
+    expect(sources.filter((s) => s.channel === 'threads')).toHaveLength(1);
+  });
+
+  it('ignores a SERVICE value that is not a fetcher', () => {
+    const sources = harnessSourcesFromEnv({ X_HARNESS_SERVICE: 'not-a-binding', X_HARNESS_API_KEY: 'k' });
+    expect(sources.find((s) => s.channel === 'x')?.fetcher).toBeUndefined();
+  });
 });
 
 describe('collectAudience', () => {
