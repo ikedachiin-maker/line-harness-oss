@@ -129,6 +129,15 @@ export type Env = {
     THREADS_HARNESS_API_KEY?: string;
     MAIL_HARNESS_URL?: string;
     MAIL_HARNESS_API_KEY?: string;
+    // 兄弟ハーネスが同じ Cloudflare アカウントに居るときの service binding。
+    // Cloudflare は同一アカウントの Worker から *.workers.dev への subrequest に
+    // 404 を返すので、URL だけでは届かない。binding があればそちらを使う
+    // (詳細は services/audience-collector.ts の HarnessSource.fetcher)。
+    // 別アカウントの相手は今まで通り *_HARNESS_URL で叩く。
+    X_HARNESS_SERVICE?: Fetcher;
+    IG_HARNESS_SERVICE?: Fetcher;
+    THREADS_HARNESS_SERVICE?: Fetcher;
+    MAIL_HARNESS_SERVICE?: Fetcher;
     IG_HARNESS_LINK_SECRET?: string;  // Shared secret for IG Harness link-line webhook
     // Phase 5 self-update — consumed by /admin/update/*. Defaults live in
     // wrangler.toml [vars]; secrets (CF_API_TOKEN, ADMIN_API_KEY) come from

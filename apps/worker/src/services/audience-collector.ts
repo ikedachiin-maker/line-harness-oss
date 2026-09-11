@@ -39,6 +39,18 @@ export interface HarnessSource {
   channel: string;
   url?: string;
   apiKey?: string;
+  /**
+   * 同一アカウントの Worker を呼ぶための service binding。
+   *
+   * **Cloudflare は、同じアカウントの Worker から `*.workers.dev` への
+   * subrequest に 404 を返す。**外から curl すると 200 なのに、
+   * line-harness の中から fetch したときだけ 404 になる。ここに
+   * 気づかないと「相手が落ちている」と誤診する(2026-09-11 に踏んだ)。
+   *
+   * 兄弟ハーネスが同じアカウントに居るときは binding を渡す。
+   * 別アカウント・別ホスティングの相手は今まで通り url で叩く。
+   */
+  fetcher?: { fetch: typeof fetch };
 }
 
 export interface CollectResult {
@@ -54,7 +66,11 @@ async function fetchAudience(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${source.url!.replace(/\/$/, '')}/api/audience`, {
+    // service binding があるときは URL のホスト名は使われない(binding が宛先)。
+    // ただし fetch には絶対 URL が要るので、url が無いときだけ置き場所を作る。
+    const base = (source.url ?? 'https://harness.invalid').replace(/\/$/, '');
+    const call = source.fetcher ? source.fetcher.fetch.bind(source.fetcher) : fetch;
+    const res = await call(`${base}/api/audience`, {
       headers: { Authorization: `Bearer ${source.apiKey!}` },
       signal: controller.signal,
     });
@@ -94,7 +110,7 @@ export async function collectAudience(
     failures.push({ channel: 'line', reason: err instanceof Error ? err.message : String(err) });
   }
 
-  const configured = sources.filter((s) => s.url && s.apiKey);
+  const configured = sources.filter((s) => (s.url || s.fetcher) && s.apiKey);
   const results = await Promise.allSettled(
     configured.map(async (source) => {
       const report = await fetchAudience(source, timeoutMs);
@@ -136,17 +152,41 @@ export async function collectAudience(
 export function harnessSourcesFromEnv(env: {
   X_HARNESS_URL?: string;
   X_HARNESS_API_KEY?: string;
+  X_HARNESS_SERVICE?: { fetch: typeof fetch };
   IG_HARNESS_URL?: string;
   IG_HARNESS_API_KEY?: string;
+  IG_HARNESS_SERVICE?: { fetch: typeof fetch };
   THREADS_HARNESS_URL?: string;
   THREADS_HARNESS_API_KEY?: string;
+  THREADS_HARNESS_SERVICE?: { fetch: typeof fetch };
   MAIL_HARNESS_URL?: string;
   MAIL_HARNESS_API_KEY?: string;
+  MAIL_HARNESS_SERVICE?: { fetch: typeof fetch };
 }): HarnessSource[] {
   return [
-    { channel: 'x', url: env.X_HARNESS_URL, apiKey: env.X_HARNESS_API_KEY },
-    { channel: 'instagram', url: env.IG_HARNESS_URL, apiKey: env.IG_HARNESS_API_KEY },
-    { channel: 'threads', url: env.THREADS_HARNESS_URL, apiKey: env.THREADS_HARNESS_API_KEY },
-    { channel: 'mail', url: env.MAIL_HARNESS_URL, apiKey: env.MAIL_HARNESS_API_KEY },
+    {
+      channel: 'x',
+      url: env.X_HARNESS_URL,
+      apiKey: env.X_HARNESS_API_KEY,
+      fetcher: env.X_HARNESS_SERVICE,
+    },
+    {
+      channel: 'instagram',
+      url: env.IG_HARNESS_URL,
+      apiKey: env.IG_HARNESS_API_KEY,
+      fetcher: env.IG_HARNESS_SERVICE,
+    },
+    {
+      channel: 'threads',
+      url: env.THREADS_HARNESS_URL,
+      apiKey: env.THREADS_HARNESS_API_KEY,
+      fetcher: env.THREADS_HARNESS_SERVICE,
+    },
+    {
+      channel: 'mail',
+      url: env.MAIL_HARNESS_URL,
+      apiKey: env.MAIL_HARNESS_API_KEY,
+      fetcher: env.MAIL_HARNESS_SERVICE,
+    },
   ];
 }

@@ -55,8 +55,18 @@ describe('harnessSourcesFromEnv', () => {
       channel: 'x',
       url: 'https://x.example',
       apiKey: 'kx',
+      fetcher: undefined,
     });
     expect(sources.find((s) => s.channel === 'mail')?.url).toBeUndefined();
+  });
+
+  it('carries the service binding through when one is bound', () => {
+    const binding = { fetch: vi.fn() } as unknown as { fetch: typeof fetch };
+    const sources = harnessSourcesFromEnv({
+      MAIL_HARNESS_API_KEY: 'km',
+      MAIL_HARNESS_SERVICE: binding,
+    });
+    expect(sources.find((s) => s.channel === 'mail')?.fetcher).toBe(binding);
   });
 });
 
@@ -108,6 +118,52 @@ describe('collectAudience', () => {
       source: 'poll',
       capturedOn: '2026-09-11',
     });
+  });
+
+  // 同一アカウントの Worker は *.workers.dev では届かない(Cloudflare が 404 を返す)。
+  // binding があるときは global fetch を使わず、必ず binding 側を通す。
+  it('uses the service binding instead of global fetch when one is bound', async () => {
+    globalThis.fetch = vi.fn() as typeof globalThis.fetch;
+    const seen: { url: string; auth: string | null }[] = [];
+    const fetcher = {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push({
+          url: String(input),
+          auth: new Headers(init?.headers).get('Authorization'),
+        });
+        return okResponse({
+          channel: 'mail',
+          accounts: [{ key: 'mail-harness', label: '池田宜史', total: 42 }],
+        });
+      }),
+    } as unknown as { fetch: typeof fetch };
+
+    const result = await collectAudience(
+      DB,
+      [{ channel: 'mail', url: 'https://mail.example', apiKey: 'km', fetcher }],
+      { today: '2026-09-11' },
+    );
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(seen).toEqual([{ url: 'https://mail.example/api/audience', auth: 'Bearer km' }]);
+    expect(result.recorded).toBe(1);
+  });
+
+  // binding だけで URL が無くても集められること (URL は binding では使われない)。
+  it('collects through a binding that has no url configured', async () => {
+    globalThis.fetch = vi.fn() as typeof globalThis.fetch;
+    const fetcher = {
+      fetch: vi.fn(async () =>
+        okResponse({ channel: 'x', accounts: [{ key: 'acc', total: 7 }] }),
+      ),
+    } as unknown as { fetch: typeof fetch };
+
+    const result = await collectAudience(DB, [{ channel: 'x', apiKey: 'kx', fetcher }], {
+      today: '2026-09-11',
+    });
+
+    expect(result.recorded).toBe(1);
+    expect(result.failures).toEqual([]);
   });
 
   it('skips a source that has no url or no api key', async () => {

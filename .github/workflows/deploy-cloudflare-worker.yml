@@ -87,6 +87,17 @@ jobs:
           IG_HARNESS_URL: ${{ vars.IG_HARNESS_URL }}
           THREADS_HARNESS_URL: ${{ vars.THREADS_HARNESS_URL }}
           MAIL_HARNESS_URL: ${{ vars.MAIL_HARNESS_URL }}
+          # Sibling harness Worker *names* (not URLs), for when they live in the
+          # SAME Cloudflare account. Cloudflare answers 404 to a subrequest from
+          # one Worker to another Worker's *.workers.dev hostname, so the URL
+          # above is unreachable from inside this Worker even though curl gets
+          # 200. A service binding is the supported way across that gap.
+          # Leave unset when the sibling is on a different account — then the
+          # URL path is used and works.
+          X_HARNESS_SERVICE: ${{ vars.X_HARNESS_SERVICE }}
+          IG_HARNESS_SERVICE: ${{ vars.IG_HARNESS_SERVICE }}
+          THREADS_HARNESS_SERVICE: ${{ vars.THREADS_HARNESS_SERVICE }}
+          MAIL_HARNESS_SERVICE: ${{ vars.MAIL_HARNESS_SERVICE }}
         run: |
           test -n "$D1_DATABASE_ID"
           cd apps/worker
@@ -114,6 +125,17 @@ jobs:
               tmp="$(mktemp)"
               jq --arg k "$name" --arg v "$val" '.vars[$k] = $v' dist/line_harness/wrangler.json > "$tmp" && mv "$tmp" dist/line_harness/wrangler.json
               echo "Patched harness var: $name=$val"
+            fi
+          done
+          # Inject service bindings for siblings in the same account. Kept out of
+          # wrangler.toml on purpose: a binding naming a Worker that does not
+          # exist fails the deploy, and a fork has none of these.
+          for name in X_HARNESS_SERVICE IG_HARNESS_SERVICE THREADS_HARNESS_SERVICE MAIL_HARNESS_SERVICE; do
+            val="${!name}"
+            if [ -n "$val" ]; then
+              tmp="$(mktemp)"
+              jq --arg b "$name" --arg s "$val" '.services = ((.services // []) + [{binding: $b, service: $s}])' dist/line_harness/wrangler.json > "$tmp" && mv "$tmp" dist/line_harness/wrangler.json
+              echo "Patched service binding: $name -> $val"
             fi
           done
 
