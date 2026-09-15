@@ -77,7 +77,8 @@
     "070_channel_agnostic_conversions.sql",
     "071_audience_snapshots.sql",
     "072_admin_password_login.sql",
-    "073_users_source.sql"
+    "073_users_source.sql",
+    "074_chatwork_relay.sql"
   ],
-  "migrationCount": 78
+  "migrationCount": 79
 }
