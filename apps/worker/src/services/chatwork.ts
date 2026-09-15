@@ -144,9 +144,9 @@ export function stripChatworkReplyMarkup(body: string): string {
     .trim();
 }
 
-/** ハーネス自身の投稿か（エコー除外用）。投稿は必ず [info] で始める */
+/** ハーネス自身の投稿か（エコー除外用）。投稿は [To:本人] を除けば必ず [info] で始める */
 export function isHarnessChatworkPost(body: string): boolean {
-  return body.trimStart().startsWith('[info]');
+  return body.replace(/^(\s*\[To:\d+\])+/i, '').trimStart().startsWith('[info]');
 }
 
 // ---- 投稿文 -----------------------------------------------------------------

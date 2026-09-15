@@ -113,3 +113,12 @@ describe('sendChatworkMessage', () => {
     await expect(sendChatworkMessage('tok', '123', 'hello', { fetcher })).rejects.toThrow(/401/);
   });
 });
+
+describe('isHarnessChatworkPost: [To:本人] 付きの通知', () => {
+  test('[To:本人] が先頭に付いていてもハーネス自身の投稿と判定する', () => {
+    expect(isHarnessChatworkPost('[To:1390104]\n[info][title]💬 x さん[/title]hi[/info]')).toBe(true);
+  });
+  test('池田の手打ちに [To:] が付いていてもハーネス投稿ではない', () => {
+    expect(isHarnessChatworkPost('[To:1390104] こんにちは')).toBe(false);
+  });
+});
