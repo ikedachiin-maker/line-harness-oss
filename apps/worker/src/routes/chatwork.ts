@@ -92,19 +92,30 @@ chatworkRoutes.post('/chatwork-webhook', async (c) => {
     }
   };
 
+  // 送り先の決め方（スマホ運用が前提。返信ボタンは必須にしない）
+  //   - 「返信」タグがあれば、その受信メッセージの相手
+  //   - 無ければ、このルームで直近にLINEをくれた（または友だち追加した）相手
+  type RelayRow = { friend_id: string; line_account_id: string | null };
   const target = parseChatworkReplyTarget(body);
-  if (!target) {
-    await post(formatReplyHint('no-reply-tag'));
-    return c.json({ ok: true, ignored: 'no-reply-tag' });
-  }
-
-  const relay = await env.DB
-    .prepare(`SELECT friend_id, line_account_id FROM chatwork_relay_messages WHERE cw_message_id = ? LIMIT 1`)
-    .bind(target.messageId)
-    .first<{ friend_id: string; line_account_id: string | null }>();
-  if (!relay) {
-    await post(formatReplyHint('unknown-target'));
-    return c.json({ ok: true, ignored: 'unknown-target' });
+  let relay: RelayRow | null;
+  if (target) {
+    relay = await env.DB
+      .prepare(`SELECT friend_id, line_account_id FROM chatwork_relay_messages WHERE cw_message_id = ? LIMIT 1`)
+      .bind(target.messageId)
+      .first<RelayRow>();
+    if (!relay) {
+      await post(formatReplyHint('unknown-target'));
+      return c.json({ ok: true, ignored: 'unknown-target' });
+    }
+  } else {
+    relay = await env.DB
+      .prepare(`SELECT friend_id, line_account_id FROM chatwork_relay_messages WHERE cw_room_id = ? ORDER BY created_at DESC LIMIT 1`)
+      .bind(roomId)
+      .first<RelayRow>();
+    if (!relay) {
+      await post(formatReplyHint('no-conversation'));
+      return c.json({ ok: true, ignored: 'no-conversation' });
+    }
   }
 
   const text = stripChatworkReplyMarkup(body);

@@ -145,13 +145,28 @@ describe('POST /chatwork-webhook', () => {
     expect(posted).toEqual([]);
   });
 
-  test('返信タグが無い発言は送らず、使い方のヒントを返す', async () => {
-    const a = app({ ...baseEnv(), DB: makeDb({ account: accountRow }) });
+  test('返信タグが無く、まだ誰からもLINEが来ていなければ送らずヒントを返す', async () => {
+    const a = app({ ...baseEnv(), DB: makeDb({ account: accountRow, relay: null }) });
     const res = await postEvent(a, { room_id: ROOM, account_id: OWNER, body: '返信ボタンを使わず書いた' });
-    expect((await json(res)).ignored).toBe('no-reply-tag');
+    expect((await json(res)).ignored).toBe('no-conversation');
     expect(posted).toHaveLength(1);
-    expect(posted[0]).toContain('返信');
+    expect(posted[0]).toContain('送り先がありません');
     expect(lineClientMocks.pushTextMessage).not.toHaveBeenCalled();
+  });
+
+  test('返信タグが無ければ、直近にLINEをくれた相手に送る（スマホ運用）', async () => {
+    dbMocks.getFriendById.mockResolvedValue({
+      id: 'f2', line_user_id: 'Ulatest', display_name: '佐藤花子', line_account_id: 'acc-2',
+    });
+    const db = makeDb({ account: accountRow, relay: { friend_id: 'f2', line_account_id: 'acc-2' } });
+    const a = app({ ...baseEnv(), DB: db });
+    const res = await postEvent(a, { room_id: ROOM, account_id: OWNER, body: '[To:1390104] 明日でOKです' });
+    expect(await json(res)).toMatchObject({ ok: true, sent: true, friendId: 'f2' });
+    expect(lineClientMocks.pushTextMessage).toHaveBeenCalledWith('Ulatest', '明日でOKです');
+    const latest = db.prepare.mock.calls.find(([sql]) => String(sql).includes('WHERE cw_room_id = ? ORDER BY created_at DESC'));
+    expect(latest).toBeTruthy();
+    expect(posted[0]).toContain('佐藤花子');
+    expect(posted[0]).toContain('送信しました');
   });
 
   test('返信先が対応表に無ければ送らない', async () => {

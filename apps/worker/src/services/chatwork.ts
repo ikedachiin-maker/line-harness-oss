@@ -161,7 +161,7 @@ export function formatIncomingNotice(p: { accountName: string; friendName: strin
 }
 
 export function formatFollowNotice(p: { accountName: string; friendName: string }): string {
-  return `[info][title]➕ 友だち追加（${safeText(p.accountName)}）[/title]${safeText(p.friendName)} さんが友だち追加しました。このメッセージに「返信」すると、この方のLINEに届きます。[/info]`;
+  return `[info][title]➕ 友だち追加（${safeText(p.accountName)}）[/title]${safeText(p.friendName)} さんが友だち追加しました。このルームにそのまま書くと、この方のLINEに届きます。[/info]`;
 }
 
 export function formatUnfollowNotice(p: { accountName: string; friendName: string }): string {
@@ -172,12 +172,12 @@ export function formatSentConfirmation(friendName: string): string {
   return `[info]✅ ${safeText(friendName)} さんのLINEに送信しました。[/info]`;
 }
 
-export function formatReplyHint(reason: 'no-reply-tag' | 'unknown-target' | 'friend-missing'): string {
+export function formatReplyHint(reason: 'no-conversation' | 'unknown-target' | 'friend-missing'): string {
   switch (reason) {
-    case 'no-reply-tag':
-      return '[info]💡 LINEに返すには、届いたメッセージの「返信」ボタンから書いてください。この投稿はLINEには送られていません。[/info]';
+    case 'no-conversation':
+      return '[info]💡 まだ誰からもLINEが届いていないため、送り先がありません。この投稿はLINEには送られていません。[/info]';
     case 'unknown-target':
-      return '[info]⚠️ 返信先のLINEが見つかりませんでした。💬 で始まる受信メッセージ、または ➕ 友だち追加のメッセージに「返信」してください。[/info]';
+      return '[info]⚠️ 返信先のLINEが見つかりませんでした。返信タグを付けずにそのまま書くと、直近にLINEをくれた方に届きます。[/info]';
     case 'friend-missing':
       return '[info]⚠️ この方は友だち一覧から消えているため送信できませんでした。[/info]';
   }
