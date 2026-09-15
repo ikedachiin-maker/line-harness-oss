@@ -20,6 +20,13 @@ import { matchAndReply } from '../services/auto-reply.js';
 import { buildMessage } from '../services/step-delivery.js';
 import { pushImmediateFirstStep } from '../services/immediate-first-step.js';
 import { sendDiscordMessage } from '../services/discord.js';
+import {
+  notifyChatworkAndRemember,
+  formatIncomingNotice,
+  formatFollowNotice,
+  formatUnfollowNotice,
+  type ChatworkNotifyTarget,
+} from '../services/chatwork.js';
 import type { Env } from '../index.js';
 import { awardActivityMileage } from '../services/activity-mileage.js';
 import { replyViaHarnessProxy } from '../services/line-proxy-send.js';
@@ -114,6 +121,8 @@ webhook.post('/webhook', async (c) => {
   // Slow path: iterate DB-registered accounts for genuinely multi-account installs.
   let channelAccessToken = c.env.LINE_CHANNEL_ACCESS_TOKEN;
   let matchedAccountId: string | null = null;
+  // Chatwork リレー用: 一致したアカウント行（ルームIDと表示名を使う）
+  let matchedAccountRow: { name: string; chatwork_room_id?: string | null } | null = null;
   let valid = false;
 
   const envSecret = c.env.LINE_CHANNEL_SECRET;
@@ -127,6 +136,7 @@ webhook.post('/webhook', async (c) => {
       if (main) {
         channelAccessToken = main.channel_access_token;
         matchedAccountId = main.id;
+        matchedAccountRow = main;
       }
     }
   }
@@ -140,6 +150,7 @@ webhook.post('/webhook', async (c) => {
       if (isValid) {
         channelAccessToken = account.channel_access_token;
         matchedAccountId = account.id;
+        matchedAccountRow = account;
         valid = true;
         break;
       }
@@ -161,6 +172,16 @@ webhook.post('/webhook', async (c) => {
 
   const lineClient = new LineClient(channelAccessToken);
 
+  // Chatwork リレー: アカウントにルームが設定され、API トークンがあるときだけ
+  const chatworkTarget: ChatworkNotifyTarget | undefined =
+    c.env.CHATWORK_API_TOKEN && matchedAccountRow?.chatwork_room_id
+      ? {
+          apiToken: c.env.CHATWORK_API_TOKEN,
+          roomId: String(matchedAccountRow.chatwork_room_id),
+          accountName: matchedAccountRow.name,
+        }
+      : undefined;
+
   // 非同期処理 — LINE は ~1s 以内のレスポンスを要求
   const processingPromise = (async () => {
     const proxyDispatch: HarnessProxyDispatch = (request) =>
@@ -179,6 +200,7 @@ webhook.post('/webhook', async (c) => {
           proxyDispatch,
           c.env.DISCORD_BOT_TOKEN,
           c.env.DISCORD_CHANNEL_ID,
+          chatworkTarget,
         );
       } catch (err) {
         console.error('Error handling webhook event:', err);
@@ -203,6 +225,7 @@ async function handleEvent(
   proxyDispatch?: HarnessProxyDispatch,
   discordToken?: string,
   discordChannelId?: string,
+  chatwork?: ChatworkNotifyTarget,
 ): Promise<void> {
   if (event.type === 'follow') {
     const userId =
@@ -363,6 +386,18 @@ async function handleEvent(
       });
     }
 
+    // Chatwork通知: 友だち追加（この投稿に「返信」すると本人のLINEに届く）
+    if (chatwork) {
+      const name = friend.display_name ?? userId;
+      await notifyChatworkAndRemember(
+        db,
+        chatwork,
+        formatFollowNotice({ accountName: chatwork.accountName, friendName: name }),
+        friend.id,
+        lineAccountId,
+      );
+    }
+
     // イベントバス発火: friend_add（replyToken は Step 0 で使用済みの可能性あり）
     await fireEvent(db, 'friend_add', { friendId: friend.id, eventData: { displayName: friend.display_name } }, lineAccessToken, lineAccountId);
     return;
@@ -374,6 +409,18 @@ async function handleEvent(
     if (!userId) return;
 
     await updateFriendFollowStatus(db, userId, false);
+
+    // Chatwork通知: ブロック（返信先にはしない）
+    if (chatwork) {
+      const blocked = await getFriendByLineUserId(db, userId).catch(() => null);
+      await notifyChatworkAndRemember(
+        db,
+        chatwork,
+        formatUnfollowNotice({ accountName: chatwork.accountName, friendName: blocked?.display_name ?? userId }),
+        null,
+        lineAccountId,
+      );
+    }
 
     // Discord通知: ブロック
     if (discordToken && discordChannelId) {
@@ -517,6 +564,28 @@ async function handleEvent(
       friendId: friend.id,
       metadata: { messageType: msg.type },
     });
+    // Chatwork通知: 画像・スタンプ等。画像は R2 に置いた URL を添える
+    if (chatwork) {
+      let notice = content;
+      if (msg.type === 'image' && finalContent !== content) {
+        try {
+          const refs = JSON.parse(finalContent) as Record<string, unknown>;
+          const url = [refs.originalContentUrl, refs.url, refs.original, refs.preview]
+            .find((v): v is string => typeof v === 'string' && v.startsWith('http'));
+          if (url) notice = `${content}\n${url}`;
+        } catch {
+          // ラベルのまま
+        }
+      }
+      await notifyChatworkAndRemember(
+        db,
+        chatwork,
+        formatIncomingNotice({ accountName: chatwork.accountName, friendName: friend.display_name ?? userId, text: notice }),
+        friend.id,
+        lineAccountId,
+      );
+    }
+
     // text と同様、非 text の自発メッセージ (画像/スタンプ等) でも chat を unread に戻す。
     // これが無いと resolved 除外 (unanswered-inbox CANDIDATES_SQL) が「解決済み後に
     // 画像だけ送ってきた友だち」をバッジ・未対応一覧から永久に落としてしまう。
@@ -642,6 +711,17 @@ async function handleEvent(
       sendDiscordMessage(discordToken, discordChannelId, `メッセージ受信: **${name}** → ${incomingText}`).catch((err) => {
         console.error('Discord notify (message) error:', err);
       });
+    }
+
+    // Chatwork通知: メッセージ受信（自動返信でさばけなかった=人が返す必要があるものだけ）
+    if (chatwork && !matched) {
+      await notifyChatworkAndRemember(
+        db,
+        chatwork,
+        formatIncomingNotice({ accountName: chatwork.accountName, friendName: friend.display_name ?? userId, text: incomingText }),
+        friend.id,
+        lineAccountId,
+      );
     }
 
     // イベントバス発火: message_received

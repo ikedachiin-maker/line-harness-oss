@@ -27,6 +27,7 @@ interface LineAccountListItem {
   isActive: boolean
   loginChannelId: string | null
   liffId: string | null
+  chatworkRoomId?: string | null
   createdAt: string
   updatedAt: string
   stats: {
@@ -108,6 +109,7 @@ export default function AccountsPage() {
         loginChannelId: form.loginChannelId.trim() || null,
         loginChannelSecret: form.loginChannelSecret.trim() || null,
         liffId: form.liffId.trim() || null,
+        chatworkRoomId: form.chatworkRoomId.trim() || null,
         ogSiteName: form.ogSiteName?.trim() || null,
         ogDefaultImageUrl: form.ogDefaultImageUrl?.trim() || null,
         ogDefaultDescription: form.ogDefaultDescription?.trim() || null,
@@ -311,6 +313,15 @@ export default function AccountsPage() {
                 >
                   LIFF: {account.liffId ? '設定済' : '未設定'}
                 </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full ${
+                    account.chatworkRoomId
+                      ? 'bg-orange-50 text-orange-700'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  Chatwork: {account.chatworkRoomId ? '連携中' : '未設定'}
+                </span>
               </div>
 
               <AccountSettingsSection
@@ -369,6 +380,7 @@ export default function AccountsPage() {
           initialChannelId={editing.channelId}
           initialLoginChannelId={editing.loginChannelId}
           initialLiffId={editing.liffId}
+          initialChatworkRoomId={editing.chatworkRoomId ?? null}
           initialOgSiteName={editing.ogSiteName}
           initialOgDefaultDescription={editing.ogDefaultDescription}
           initialOgDefaultImageUrl={editing.ogDefaultImageUrl}

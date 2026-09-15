@@ -12,6 +12,8 @@ export interface LineAccount {
   login_channel_id: string | null;
   login_channel_secret: string | null;
   liff_id: string | null;
+  /** このアカウント宛の受信を流す Chatwork ルーム（池田独自）。NULL なら連携なし */
+  chatwork_room_id: string | null;
   is_active: number;
   country: string | null;
   role: string | null;
@@ -32,6 +34,7 @@ export interface CreateLineAccountInput {
   loginChannelId?: string | null;
   loginChannelSecret?: string | null;
   liffId?: string | null;
+  chatworkRoomId?: string | null;
   ogSiteName?: string | null;
   ogDefaultImageUrl?: string | null;
   ogDefaultDescription?: string | null;
@@ -55,11 +58,11 @@ export async function createLineAccount(
     .prepare(
       `INSERT INTO line_accounts
          (id, channel_id, name, channel_access_token, channel_secret,
-          login_channel_id, login_channel_secret, liff_id,
+          login_channel_id, login_channel_secret, liff_id, chatwork_room_id,
           is_active, display_order,
           og_site_name, og_default_image_url, og_default_description,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -70,6 +73,7 @@ export async function createLineAccount(
       input.loginChannelId ?? null,
       input.loginChannelSecret ?? null,
       input.liffId ?? null,
+      input.chatworkRoomId ?? null,
       displayOrder,
       input.ogSiteName ?? null,
       input.ogDefaultImageUrl ?? null,
@@ -118,6 +122,7 @@ export type UpdateLineAccountInput = Partial<
     | 'login_channel_id'
     | 'login_channel_secret'
     | 'liff_id'
+    | 'chatwork_room_id'
     | 'is_active'
     | 'token_expires_at'
     | 'og_site_name'
@@ -157,6 +162,10 @@ export async function updateLineAccount(
   if (updates.liff_id !== undefined) {
     fields.push('liff_id = ?');
     values.push(updates.liff_id);
+  }
+  if (updates.chatwork_room_id !== undefined) {
+    fields.push('chatwork_room_id = ?');
+    values.push(updates.chatwork_room_id);
   }
   if (updates.is_active !== undefined) {
     fields.push('is_active = ?');
@@ -207,6 +216,7 @@ export interface UpdateLineAccountFieldsInput {
   loginChannelId?: string | null;
   loginChannelSecret?: string | null;
   liffId?: string | null;
+  chatworkRoomId?: string | null;
   ogSiteName?: string | null;
   ogDefaultImageUrl?: string | null;
   ogDefaultDescription?: string | null;
@@ -243,6 +253,10 @@ export async function updateLineAccountFields(
   if (input.liffId !== undefined) {
     sets.push('liff_id = ?');
     binds.push(input.liffId);
+  }
+  if (input.chatworkRoomId !== undefined) {
+    sets.push('chatwork_room_id = ?');
+    binds.push(input.chatworkRoomId);
   }
   if (input.ogSiteName !== undefined) {
     sets.push('og_site_name = ?');

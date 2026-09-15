@@ -292,6 +292,14 @@ CREATE TABLE chats (
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
 , line_account_id TEXT);
 
+CREATE TABLE chatwork_relay_messages (
+  cw_message_id   TEXT PRIMARY KEY,
+  cw_room_id      TEXT NOT NULL,
+  friend_id       TEXT NOT NULL REFERENCES friends (id) ON DELETE CASCADE,
+  line_account_id TEXT,
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
+);
+
 CREATE TABLE "conversion_events" (
   id                   TEXT PRIMARY KEY,
   conversion_point_id  TEXT NOT NULL REFERENCES conversion_points (id) ON DELETE CASCADE,
@@ -584,7 +592,7 @@ CREATE TABLE line_accounts (
   og_default_description TEXT,
   created_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours')),
   updated_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', '+9 hours'))
-, login_channel_id TEXT, login_channel_secret TEXT, liff_id TEXT, token_expires_at TEXT);
+, login_channel_id TEXT, login_channel_secret TEXT, liff_id TEXT, token_expires_at TEXT, chatwork_room_id TEXT);
 
 CREATE TABLE link_clicks (
   id TEXT PRIMARY KEY,
@@ -1264,6 +1272,8 @@ CREATE UNIQUE INDEX idx_chats_friend_unique ON chats (friend_id);
 CREATE INDEX idx_chats_operator ON chats (operator_id);
 
 CREATE INDEX idx_chats_status ON chats (status);
+
+CREATE INDEX idx_chatwork_relay_friend ON chatwork_relay_messages (friend_id);
 
 CREATE INDEX idx_conversion_events_affiliate ON conversion_events (affiliate_code);
 

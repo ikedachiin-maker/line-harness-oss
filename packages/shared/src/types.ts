@@ -392,6 +392,8 @@ export interface LineAccount {
   loginChannelSecret: string | null;
   /** LIFF ID. このアカ向けの LIFF page を開くときに `?liffId=` で識別する. */
   liffId: string | null;
+  /** Chatwork ルームID. このアカ宛の LINE 受信を流し、ルームの「返信」で LINE に返す（池田独自）. 未設定なら null. */
+  chatworkRoomId: string | null;
   /** 有効/無効 */
   isActive: boolean;
   /** 作成日時 (ISO 8601) */

@@ -100,6 +100,7 @@ import {
   resolveOgForAccount,
 } from './lib/og-resolver.js';
 import { discordRoutes } from './routes/discord.js';
+import { chatworkRoutes } from './routes/chatwork.js';
 
 export type Env = {
   Bindings: {
@@ -171,6 +172,13 @@ export type Env = {
     DISCORD_CHANNEL_ID?: string;
     DISCORD_PUBLIC_KEY?: string;
     DISCORD_APP_ID?: string;
+    // Chatwork 双方向リレー（池田独自）。3つとも `wrangler secret put`。
+    //   CHATWORK_API_TOKEN        … 投稿用 API トークン（池田本人のもの）
+    //   CHATWORK_WEBHOOK_TOKEN    … ルーム webhook の署名トークン（カンマ区切りで複数可）
+    //   CHATWORK_OWNER_ACCOUNT_ID … LINE へ送ってよい発言者（池田本人の account_id）
+    CHATWORK_API_TOKEN?: string;
+    CHATWORK_WEBHOOK_TOKEN?: string;
+    CHATWORK_OWNER_ACCOUNT_ID?: string;
   };
   Variables: {
     staff: { id: string; name: string; role: 'owner' | 'admin' | 'staff' };
@@ -271,6 +279,8 @@ app.route('/', instagramEngagement);
 // LINE Messaging API 互換プロキシ — 外部エージェントの直接送信を messages_log に残す
 app.route('/', lineProxy);
 app.route('/', discordRoutes);
+// Chatwork の「返信」→ LINE push（署名検証のみ・池田独自）
+app.route('/', chatworkRoutes);
 
 // Phase 5 (upgrade flow) — public build metadata endpoint. Mounted under
 // /admin/ but intentionally unauthenticated: the dashboard fetches /admin/version

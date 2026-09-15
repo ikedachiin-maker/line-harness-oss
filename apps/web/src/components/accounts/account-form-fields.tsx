@@ -16,6 +16,7 @@ export interface AccountFormState {
   loginChannelId: string
   loginChannelSecret: string
   liffId: string
+  chatworkRoomId: string
   // OGP brand settings (optional — only present/sent when the user edits them)
   ogSiteName: string | null
   ogDefaultDescription: string | null
@@ -30,6 +31,7 @@ export const emptyAccountFormState: AccountFormState = {
   loginChannelId: '',
   loginChannelSecret: '',
   liffId: '',
+  chatworkRoomId: '',
   ogSiteName: null,
   ogDefaultDescription: null,
   ogDefaultImageUrl: null,
@@ -125,7 +127,7 @@ export function AccountFormSections({
   // edit so users don't think they can fix a typo here (they'd need to
   // delete + recreate the row to change Channel ID).
   channelIdEditable?: boolean
-  defaultOpen?: { messaging?: boolean; login?: boolean; liff?: boolean; ogp?: boolean }
+  defaultOpen?: { messaging?: boolean; login?: boolean; liff?: boolean; chatwork?: boolean; ogp?: boolean }
 }) {
   return (
     <div className="space-y-3">
@@ -209,6 +211,20 @@ export function AccountFormSections({
           onChange={(v) => update({ liffId: v })}
           placeholder="2009624792-XXXXXXXX"
           hint="LINE Developers > Login channel > LIFF タブで作成したものの ID"
+        />
+      </FormSection>
+
+      <FormSection
+        title="Chatwork（任意）"
+        description="このアカウント宛のLINEをChatworkのルームに流し、ルームの「返信」でLINEに返せる"
+        defaultOpen={defaultOpen?.chatwork ?? false}
+      >
+        <TextField
+          label="Chatwork ルームID"
+          value={state.chatworkRoomId}
+          onChange={(v) => update({ chatworkRoomId: v })}
+          placeholder="422111222"
+          hint="ルームを開いたときのURL https://www.chatwork.com/#!rid の後ろの数字。空欄なら連携しない"
         />
       </FormSection>
 

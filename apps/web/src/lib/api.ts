@@ -662,6 +662,7 @@ export const api = {
       loginChannelId?: string | null;
       loginChannelSecret?: string | null;
       liffId?: string | null;
+      chatworkRoomId?: string | null;
       ogSiteName?: string | null;
       ogDefaultImageUrl?: string | null;
       ogDefaultDescription?: string | null;
@@ -690,6 +691,7 @@ export const api = {
           | 'loginChannelId'
           | 'loginChannelSecret'
           | 'liffId'
+          | 'chatworkRoomId'
           | 'isActive'
           | 'country'
           | 'role'

@@ -37,6 +37,7 @@ function serializeLineAccount(row: DbLineAccount) {
     // without a separate fetch.
     loginChannelId: row.login_channel_id,
     liffId: row.liff_id,
+    chatworkRoomId: row.chatwork_room_id ?? null,
     ogSiteName: row.og_site_name,
     ogDefaultImageUrl: row.og_default_image_url,
     ogDefaultDescription: row.og_default_description,
@@ -338,6 +339,7 @@ lineAccounts.post('/api/line-accounts', requireRole('owner'), async (c) => {
       loginChannelId?: string | null;
       loginChannelSecret?: string | null;
       liffId?: string | null;
+      chatworkRoomId?: string | null;
       ogSiteName?: string | null;
       ogDefaultImageUrl?: string | null;
       ogDefaultDescription?: string | null;
@@ -356,6 +358,7 @@ lineAccounts.post('/api/line-accounts', requireRole('owner'), async (c) => {
     const loginChannelId = normalizeOptionalString(body.loginChannelId) ?? null;
     const loginChannelSecret = normalizeOptionalString(body.loginChannelSecret) ?? null;
     const liffId = normalizeOptionalString(body.liffId) ?? null;
+    const chatworkRoomId = normalizeOptionalString(body.chatworkRoomId) ?? null;
 
     const pairError = validateLoginChannelPair(
       { loginChannelId, loginChannelSecret },
@@ -374,6 +377,7 @@ lineAccounts.post('/api/line-accounts', requireRole('owner'), async (c) => {
       loginChannelId,
       loginChannelSecret,
       liffId,
+      chatworkRoomId,
       ogSiteName: normalizeOptionalString(body.ogSiteName) ?? null,
       ogDefaultImageUrl: normalizeOptionalString(body.ogDefaultImageUrl) ?? null,
       ogDefaultDescription: normalizeOptionalString(body.ogDefaultDescription) ?? null,
@@ -496,6 +500,7 @@ lineAccounts.patch(
         loginChannelId?: string | null;
         loginChannelSecret?: string | null;
         liffId?: string | null;
+        chatworkRoomId?: string | null;
         ogSiteName?: string | null;
         ogDefaultImageUrl?: string | null;
         ogDefaultDescription?: string | null;
@@ -509,6 +514,7 @@ lineAccounts.patch(
       const loginChannelId = normalizeOptionalString(body.loginChannelId);
       const loginChannelSecret = normalizeOptionalString(body.loginChannelSecret);
       const liffId = normalizeOptionalString(body.liffId);
+      const chatworkRoomId = normalizeOptionalString(body.chatworkRoomId);
       const ogSiteName = normalizeOptionalString(body.ogSiteName);
       const ogDefaultImageUrl = normalizeOptionalString(body.ogDefaultImageUrl);
       const ogDefaultDescription = normalizeOptionalString(body.ogDefaultDescription);
@@ -555,6 +561,7 @@ lineAccounts.patch(
         role !== undefined ||
         body.isActive !== undefined ||
         touchesLoginOrLiff ||
+        chatworkRoomId !== undefined ||
         touchesOg;
 
       // Route to the fields helper when name is not being changed.
@@ -566,6 +573,7 @@ lineAccounts.patch(
           loginChannelId,
           loginChannelSecret,
           liffId,
+          chatworkRoomId,
           ogSiteName,
           ogDefaultImageUrl,
           ogDefaultDescription,
@@ -581,6 +589,7 @@ lineAccounts.patch(
         login_channel_id: loginChannelId,
         login_channel_secret: loginChannelSecret,
         liff_id: liffId,
+        chatwork_room_id: chatworkRoomId,
         og_site_name: ogSiteName,
         og_default_image_url: ogDefaultImageUrl,
         og_default_description: ogDefaultDescription,

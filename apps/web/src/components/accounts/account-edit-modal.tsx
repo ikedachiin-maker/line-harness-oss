@@ -15,6 +15,7 @@ interface Props {
   initialChannelId: string
   initialLoginChannelId: string | null
   initialLiffId: string | null
+  initialChatworkRoomId?: string | null
   initialOgSiteName?: string | null
   initialOgDefaultDescription?: string | null
   initialOgDefaultImageUrl?: string | null
@@ -33,6 +34,7 @@ export default function AccountEditModal({
   initialChannelId,
   initialLoginChannelId,
   initialLiffId,
+  initialChatworkRoomId = null,
   initialOgSiteName = null,
   initialOgDefaultDescription = null,
   initialOgDefaultImageUrl = null,
@@ -45,6 +47,7 @@ export default function AccountEditModal({
     channelId: initialChannelId,
     loginChannelId: initialLoginChannelId ?? '',
     liffId: initialLiffId ?? '',
+    chatworkRoomId: initialChatworkRoomId ?? '',
     ogSiteName: initialOgSiteName,
     ogDefaultDescription: initialOgDefaultDescription,
     ogDefaultImageUrl: initialOgDefaultImageUrl,
@@ -100,6 +103,9 @@ export default function AccountEditModal({
 
     if ((state.liffId.trim() || null) !== (initialLiffId ?? null)) {
       payload.liffId = state.liffId.trim() || null
+    }
+    if ((state.chatworkRoomId.trim() || null) !== (initialChatworkRoomId ?? null)) {
+      payload.chatworkRoomId = state.chatworkRoomId.trim() || null
     }
 
     // OGP brand settings: always send when they differ from initial values
