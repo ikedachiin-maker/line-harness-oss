@@ -179,6 +179,7 @@ webhook.post('/webhook', async (c) => {
           apiToken: c.env.CHATWORK_API_TOKEN,
           roomId: String(matchedAccountRow.chatwork_room_id),
           accountName: matchedAccountRow.name,
+          ownerAccountId: c.env.CHATWORK_OWNER_ACCOUNT_ID,
         }
       : undefined;
 

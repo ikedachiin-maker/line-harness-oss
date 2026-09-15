@@ -30,6 +30,8 @@ export interface ChatworkNotifyTarget {
   apiToken: string;
   roomId: string;
   accountName: string;
+  /** 通知先（池田本人の account_id）。あれば [To:] を付けて未読で投稿する */
+  ownerAccountId?: string;
 }
 
 /**
@@ -195,7 +197,11 @@ export async function notifyChatworkAndRemember(
   lineAccountId: string | null,
 ): Promise<void> {
   try {
-    const messageId = await sendChatworkMessage(target.apiToken, target.roomId, text);
+    // 投稿は池田本人のトークンで行うので、そのままでは自分の発言＝既読・通知なしになる。
+    // [To:本人] を付け、self_unread=1 で未読に積んで気づけるようにする。
+    const owner = String(target.ownerAccountId ?? '').trim();
+    const body = /^\d+$/.test(owner) ? `[To:${owner}]\n${text}` : text;
+    const messageId = await sendChatworkMessage(target.apiToken, target.roomId, body, { selfUnread: true });
     if (messageId && friendId) {
       await db
         .prepare(
