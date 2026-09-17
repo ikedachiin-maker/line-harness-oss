@@ -384,11 +384,23 @@ trackedLinks.get('/t/:linkId', async (c) => {
   );
 
   // App-link domains: return HTML with JS redirect for Universal Link support
+  const destination = fillFriendPlaceholder(link.original_url, friendId);
   if (useAppRedirect) {
-    return c.html(buildAppRedirectHtml(link.original_url));
+    return c.html(buildAppRedirectHtml(destination));
   }
 
-  return c.redirect(link.original_url, 302);
+  return c.redirect(destination, 302);
 });
+
+/**
+ * original_url の {{friend_id}} を、このクリックで特定できた友だちのIDで埋める。
+ * 外部フォームの事前入力（Googleフォームの entry.N={{friend_id}} 等）で回答者を
+ * 友だちに結び付けるため。特定できなければ空にする（プレースホルダ文字列を
+ * 回答欄に出さない）。
+ */
+export function fillFriendPlaceholder(url: string, friendId: string | null): string {
+  if (!url.includes('{{friend_id}}')) return url;
+  return url.split('{{friend_id}}').join(friendId ? encodeURIComponent(friendId) : '');
+}
 
 export { trackedLinks };

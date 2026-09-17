@@ -10,6 +10,8 @@ import {
   createOutgoingWebhook,
   updateOutgoingWebhook,
   deleteOutgoingWebhook,
+  getFriendById,
+  getLineAccountById,
 } from '@line-crm/db';
 import type { Env } from '../index.js';
 
@@ -368,13 +370,41 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
       return c.json({ success: false, error: 'Invalid JSON body' }, 400);
     }
 
+    // 本文に friendId があり実在する友だちなら、その友だちのイベントとして流す。
+    // 無いと自動化の add_tag / send_message は friendId 必須で何もできない
+    // （外部フォームの送信で「記入完了」タグを付ける用途）。
+    let friendId: string | undefined;
+    let lineAccessToken: string | undefined;
+    let lineAccountId: string | null = null;
+    const rawFriendId =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>).friendId : undefined;
+    if (typeof rawFriendId === 'string' && rawFriendId.trim()) {
+      const friend = await getFriendById(c.env.DB, rawFriendId.trim());
+      if (friend) {
+        friendId = friend.id;
+        lineAccountId = (friend as unknown as { line_account_id?: string | null }).line_account_id ?? null;
+        lineAccessToken = c.env.LINE_CHANNEL_ACCESS_TOKEN;
+        if (lineAccountId) {
+          const account = await getLineAccountById(c.env.DB, lineAccountId);
+          if (account) lineAccessToken = account.channel_access_token;
+        }
+      }
+    }
+
     const { fireEvent } = await import('../services/event-bus.js');
     const eventType = `incoming_webhook.${wh.source_type}`;
-    await fireEvent(c.env.DB, eventType, {
-      eventData: { webhookId: wh.id, source: wh.source_type, payload },
-    });
+    await fireEvent(
+      c.env.DB,
+      eventType,
+      { friendId, eventData: { webhookId: wh.id, source: wh.source_type, payload } },
+      lineAccessToken,
+      lineAccountId,
+    );
 
-    return c.json({ success: true, data: { received: true, source: wh.source_type } });
+    return c.json({
+      success: true,
+      data: { received: true, source: wh.source_type, friendMatched: Boolean(friendId) },
+    });
   } catch (err) {
     console.error('POST /api/webhooks/incoming/:id/receive error:', err);
     return c.json({ success: false, error: 'Internal server error' }, 500);

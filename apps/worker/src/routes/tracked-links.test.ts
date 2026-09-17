@@ -16,6 +16,7 @@ const dbMocks = {
   enrollFriendInScenario: vi.fn(),
   getTrackedLinkBaseUrl: vi.fn(),
   getLinkBaseUrl: vi.fn(),
+  applyMileageRulesForEvent: vi.fn(),
 };
 vi.mock('@line-crm/db', () => dbMocks);
 
@@ -220,5 +221,33 @@ describe('GET /t/:linkId — short codes', () => {
     expect(res.headers.get('location')).toContain(
       encodeURIComponent('https://worker.example.com/t/Ab3xY9k'),
     );
+  });
+});
+
+describe('GET /t/:linkId — {{friend_id}} の事前入力', () => {
+  const formUrl = 'https://docs.google.com/forms/d/e/X/viewform?usp=pp_url&entry.111={{friend_id}}';
+  const env = { DB: makeDb({}), WORKER_URL: 'https://worker.example.com' };
+
+  test('f= の友だちIDで埋めてリダイレクトする', async () => {
+    dbMocks.getTrackedLinkByIdOrShortCode.mockResolvedValue(makeLink({ original_url: formUrl }));
+    const res = await request(env, 'Mozilla/5.0 Safari/605.1.15', '/t/link-1?f=friend-abc');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(
+      'https://docs.google.com/forms/d/e/X/viewform?usp=pp_url&entry.111=friend-abc',
+    );
+  });
+
+  test('友だちを特定できなければ空にする', async () => {
+    dbMocks.getTrackedLinkByIdOrShortCode.mockResolvedValue(makeLink({ original_url: formUrl }));
+    const res = await request(env, 'Mozilla/5.0 Safari/605.1.15', '/t/link-1');
+    expect(res.headers.get('location')).toBe(
+      'https://docs.google.com/forms/d/e/X/viewform?usp=pp_url&entry.111=',
+    );
+  });
+
+  test('プレースホルダが無いURLはそのまま', async () => {
+    dbMocks.getTrackedLinkByIdOrShortCode.mockResolvedValue(makeLink());
+    const res = await request(env, 'Mozilla/5.0 Safari/605.1.15', '/t/link-1?f=friend-abc');
+    expect(res.headers.get('location')).toBe('https://example.com/lp');
   });
 });

@@ -12,6 +12,8 @@ vi.mock('@line-crm/db', () => ({
   createOutgoingWebhook: vi.fn(),
   updateOutgoingWebhook: vi.fn(),
   deleteOutgoingWebhook: vi.fn(),
+  getFriendById: vi.fn(),
+  getLineAccountById: vi.fn(),
 }));
 
 // Stub fireEvent to keep receive-endpoint tests focused on signature
@@ -29,7 +31,10 @@ import {
   getOutgoingWebhookById,
   createOutgoingWebhook,
   updateOutgoingWebhook,
+  getFriendById,
+  getLineAccountById,
 } from '@line-crm/db';
+import { fireEvent } from '../services/event-bus.js';
 import { webhooks } from './webhooks.js';
 
 const VALID_SECRET = 'a'.repeat(32);
@@ -583,5 +588,80 @@ describe('POST /api/webhooks/incoming/:id/receive — signature', () => {
       baseEnv,
     );
     expect(res.status).toBe(200);
+  });
+});
+
+// =====================================================
+// POST /api/webhooks/incoming/:id/receive — friendId 付きの受信
+// =====================================================
+
+async function signedReceive(payload: unknown, env: Record<string, unknown> = baseEnv) {
+  vi.mocked(getIncomingWebhookById).mockResolvedValue({
+    id: 'iwh-1',
+    name: 'google form',
+    source_type: 'google_form',
+    secret: VALID_SECRET,
+    is_active: 1,
+    created_at: '2026-09-18T00:00:00.000+09:00',
+    updated_at: '2026-09-18T00:00:00.000+09:00',
+  });
+  const body = JSON.stringify(payload);
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(VALID_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+  const hex = Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return setupApp().request(
+    '/api/webhooks/incoming/iwh-1/receive',
+    { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': hex }, body },
+    env,
+  );
+}
+
+describe('POST /api/webhooks/incoming/:id/receive — friendId', () => {
+  test('実在する friendId はその友だちのアカウントのトークンでイベントに載る', async () => {
+    vi.mocked(getFriendById).mockResolvedValue({ id: 'friend-1', line_account_id: 'acc-1' } as never);
+    vi.mocked(getLineAccountById).mockResolvedValue({ id: 'acc-1', channel_access_token: 'acc-token' } as never);
+
+    const res = await signedReceive({ friendId: 'friend-1', formTitle: '審査' });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data: { friendMatched: boolean } };
+    expect(json.data.friendMatched).toBe(true);
+    expect(fireEvent).toHaveBeenCalledWith(
+      baseEnv.DB,
+      'incoming_webhook.google_form',
+      expect.objectContaining({ friendId: 'friend-1' }),
+      'acc-token',
+      'acc-1',
+    );
+  });
+
+  test('見つからない friendId は友だち無しのイベントとして流す', async () => {
+    vi.mocked(getFriendById).mockResolvedValue(null as never);
+
+    const res = await signedReceive({ friendId: 'nope' });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data: { friendMatched: boolean } };
+    expect(json.data.friendMatched).toBe(false);
+    expect(fireEvent).toHaveBeenCalledWith(
+      baseEnv.DB,
+      'incoming_webhook.google_form',
+      expect.objectContaining({ friendId: undefined }),
+      undefined,
+      null,
+    );
+  });
+
+  test('friendId が無い本文では友だちを引かない', async () => {
+    const res = await signedReceive({ ping: true });
+    expect(res.status).toBe(200);
+    expect(getFriendById).not.toHaveBeenCalled();
   });
 });
