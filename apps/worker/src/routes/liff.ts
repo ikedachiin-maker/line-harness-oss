@@ -429,7 +429,7 @@ liffRoutes.get('/auth/line', async (c) => {
   loginUrl.searchParams.set('response_type', 'code');
   loginUrl.searchParams.set('client_id', channelId);
   loginUrl.searchParams.set('redirect_uri', callbackUrl);
-  loginUrl.searchParams.set('scope', 'profile openid email');
+  loginUrl.searchParams.set('scope', 'profile openid');
   loginUrl.searchParams.set('bot_prompt', 'aggressive');
   loginUrl.searchParams.set('state', encodedState);
 
@@ -597,7 +597,7 @@ liffRoutes.get('/auth/oauth', async (c) => {
   loginUrl.searchParams.set('response_type', 'code');
   loginUrl.searchParams.set('client_id', channelId);
   loginUrl.searchParams.set('redirect_uri', callbackUrl);
-  loginUrl.searchParams.set('scope', 'profile openid email');
+  loginUrl.searchParams.set('scope', 'profile openid');
   loginUrl.searchParams.set('bot_prompt', 'aggressive');
   loginUrl.searchParams.set('state', encodedState);
 
