@@ -35,7 +35,8 @@ const MAX_BODY = 256 * 1024; // Chatwork の本文上限は約65,000字。余裕
 
 chatworkRoutes.post('/chatwork-webhook', async (c) => {
   const env = c.env;
-  if (!env.CHATWORK_WEBHOOK_TOKEN || !env.CHATWORK_API_TOKEN) {
+  const webhookTokens = [env.CHATWORK_WEBHOOK_TOKEN, env.CHATWORK_WEBHOOK_TOKEN_2].filter(Boolean).join(',');
+  if (!webhookTokens || !env.CHATWORK_API_TOKEN) {
     return c.text('disabled', 401);
   }
 
@@ -46,7 +47,7 @@ chatworkRoutes.post('/chatwork-webhook', async (c) => {
   if (raw.length > MAX_BODY) return c.text('payload too large', 413);
 
   const signature = c.req.header('X-ChatWorkWebhookSignature') ?? c.req.header('x-chatworkwebhooksignature');
-  if (!(await verifyChatworkSignature(raw, signature, env.CHATWORK_WEBHOOK_TOKEN))) {
+  if (!(await verifyChatworkSignature(raw, signature, webhookTokens))) {
     console.error('[chatwork] invalid webhook signature');
     return c.text('invalid signature', 401);
   }

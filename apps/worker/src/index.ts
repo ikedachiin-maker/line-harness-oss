@@ -176,8 +176,11 @@ export type Env = {
     //   CHATWORK_API_TOKEN        … 投稿用 API トークン（池田本人のもの）
     //   CHATWORK_WEBHOOK_TOKEN    … ルーム webhook の署名トークン（カンマ区切りで複数可）
     //   CHATWORK_OWNER_ACCOUNT_ID … LINE へ送ってよい発言者（池田本人の account_id）
+    //   CHATWORK_WEBHOOK_TOKEN_2  … 2つ目以降のルームの署名トークン（任意・カンマ区切り可）。
+    //     secret は追記できず上書きしかできないため、既存ルームの値を知らなくても足せるよう分けてある
     CHATWORK_API_TOKEN?: string;
     CHATWORK_WEBHOOK_TOKEN?: string;
+    CHATWORK_WEBHOOK_TOKEN_2?: string;
     CHATWORK_OWNER_ACCOUNT_ID?: string;
   };
   Variables: {

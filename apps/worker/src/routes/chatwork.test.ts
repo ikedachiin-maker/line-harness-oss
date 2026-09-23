@@ -118,6 +118,33 @@ describe('POST /chatwork-webhook', () => {
     expect(posted).toEqual([]);
   });
 
+  test('2本目のトークン(CHATWORK_WEBHOOK_TOKEN_2)で署名したルームも通す', async () => {
+    const second = btoa('second-room-secret');
+    const a = app({ ...baseEnv(), CHATWORK_WEBHOOK_TOKEN_2: second, DB: makeDb({ account: null }) });
+    const res = await postEvent(a, { room_id: '1', account_id: OWNER, body: 'x' }, { token: second });
+    expect(res.status).toBe(200);
+    expect((await json(res)).ignored).toBe('room-not-linked');
+  });
+
+  test('2本目だけ設定されていても、1本目のトークンの署名は引き続き通る', async () => {
+    const a = app({ ...baseEnv(), CHATWORK_WEBHOOK_TOKEN_2: btoa('second-room-secret'), DB: makeDb({ account: null }) });
+    const res = await postEvent(a, { room_id: '1', account_id: OWNER, body: 'x' });
+    expect(res.status).toBe(200);
+  });
+
+  test('どちらのトークンとも合わなければ 401', async () => {
+    const a = app({ ...baseEnv(), CHATWORK_WEBHOOK_TOKEN_2: btoa('second-room-secret'), DB: makeDb({ account: null }) });
+    const res = await postEvent(a, { room_id: '1', account_id: OWNER, body: 'x' }, { token: btoa('other') });
+    expect(res.status).toBe(401);
+  });
+
+  test('1本目が未設定でも2本目だけで動く', async () => {
+    const second = btoa('second-room-secret');
+    const a = app({ ...baseEnv(), CHATWORK_WEBHOOK_TOKEN: undefined, CHATWORK_WEBHOOK_TOKEN_2: second, DB: makeDb({ account: null }) });
+    const res = await postEvent(a, { room_id: '1', account_id: OWNER, body: 'x' }, { token: second });
+    expect(res.status).toBe(200);
+  });
+
   test('[info] で始まる自分の通知はエコーとして無視', async () => {
     const a = app({ ...baseEnv(), DB: makeDb({ account: accountRow }) });
     const res = await postEvent(a, { room_id: ROOM, account_id: OWNER, body: '[info]💬 x[/info]' });
