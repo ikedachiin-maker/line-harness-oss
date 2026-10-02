@@ -14,6 +14,7 @@ import {
   getLineAccountById,
 } from '@line-crm/db';
 import type { Env } from '../index.js';
+import { formatIncomingWebhookNotice, notifyChatworkAndRemember } from '../services/chatwork.js';
 
 const webhooks = new Hono<Env>();
 
@@ -374,18 +375,21 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
     // 無いと自動化の add_tag / send_message は friendId 必須で何もできない
     // （外部フォームの送信で「記入完了」タグを付ける用途）。
     let friendId: string | undefined;
+    let friendName = '';
     let lineAccessToken: string | undefined;
     let lineAccountId: string | null = null;
+    let account: Awaited<ReturnType<typeof getLineAccountById>> = null;
     const rawFriendId =
       payload && typeof payload === 'object' ? (payload as Record<string, unknown>).friendId : undefined;
     if (typeof rawFriendId === 'string' && rawFriendId.trim()) {
       const friend = await getFriendById(c.env.DB, rawFriendId.trim());
       if (friend) {
         friendId = friend.id;
+        friendName = (friend as unknown as { display_name?: string | null }).display_name ?? '';
         lineAccountId = (friend as unknown as { line_account_id?: string | null }).line_account_id ?? null;
         lineAccessToken = c.env.LINE_CHANNEL_ACCESS_TOKEN;
         if (lineAccountId) {
-          const account = await getLineAccountById(c.env.DB, lineAccountId);
+          account = await getLineAccountById(c.env.DB, lineAccountId);
           if (account) lineAccessToken = account.channel_access_token;
         }
       }
@@ -400,6 +404,28 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
       lineAccessToken,
       lineAccountId,
     );
+
+    // 友だちのアカウントに Chatwork ルームがあれば知らせる（フォーム送信を LINE の受信と同じルームで気づけるように）。
+    // 通知は返信先として記録するので、この投稿に「返信」すればその友だちの LINE に届く。失敗しても受信は成功で返す
+    if (friendId && account?.chatwork_room_id && c.env.CHATWORK_API_TOKEN) {
+      await notifyChatworkAndRemember(
+        c.env.DB,
+        {
+          apiToken: c.env.CHATWORK_API_TOKEN,
+          roomId: String(account.chatwork_room_id),
+          accountName: account.name,
+          ownerAccountId: c.env.CHATWORK_OWNER_ACCOUNT_ID,
+        },
+        formatIncomingWebhookNotice({
+          accountName: account.name,
+          webhookName: wh.name,
+          friendName: friendName || '（名前不明）',
+          payload,
+        }),
+        friendId,
+        lineAccountId,
+      );
+    }
 
     return c.json({
       success: true,

@@ -7,6 +7,7 @@ import {
   sendChatworkMessage,
   stripChatworkReplyMarkup,
   verifyChatworkSignature,
+  formatIncomingWebhookNotice,
 } from './chatwork.js';
 
 async function signLikeChatwork(rawBody: string, tokenBase64: string): Promise<string> {
@@ -76,6 +77,15 @@ describe('stripChatworkReplyMarkup', () => {
     expect(stripChatworkReplyMarkup(body)).toBe('明日の10時でいかがでしょうか？');
   });
 
+  test('今の返信ボタンが入れる地の文の「名前さん」も落とす（お客さんのLINEに名前が届かない）', () => {
+    const body = '[rp aid=2222 to=333333-4444444444]通知ボットさん\n\n\n5日の20時でどうでしょうか？';
+    expect(stripChatworkReplyMarkup(body)).toBe('5日の20時でどうでしょうか？');
+  });
+
+  test('返信タグの行に「さん」が無ければ本文は削らない', () => {
+    expect(stripChatworkReplyMarkup('[rp aid=1 to=2-3]\n了解です')).toBe('了解です');
+  });
+
   test('[To:] と [info] も落とす', () => {
     expect(stripChatworkReplyMarkup('[To:1][info]x[/info]了解です')).toBe('了解です');
   });
@@ -120,5 +130,25 @@ describe('isHarnessChatworkPost: [To:本人] 付きの通知', () => {
   });
   test('池田の手打ちに [To:] が付いていてもハーネス投稿ではない', () => {
     expect(isHarnessChatworkPost('[To:1390104] こんにちは')).toBe(false);
+  });
+});
+
+describe('formatIncomingWebhookNotice', () => {
+  test('受信Webhookの名前・アカウント・友だち名と、読める項目だけを載せる', () => {
+    const text = formatIncomingWebhookNotice({
+      accountName: 'サミットmnp1001',
+      webhookName: '個別相談_審査フォーム(Googleフォーム)',
+      friendName: 'abe',
+      payload: { friendId: 'f-1', lineName: 'あべ', responseId: 'r-1', submittedAt: '2026-10-02T12:00:00Z' },
+    });
+    expect(text).toBe(
+      '[info][title]📥 個別相談_審査フォーム(Googleフォーム)（サミットmnp1001）[/title]abe さん\nフォームに書いたLINE名: あべ[/info]',
+    );
+    expect(isHarnessChatworkPost(text)).toBe(true);
+  });
+
+  test('空の項目は載せない', () => {
+    const text = formatIncomingWebhookNotice({ accountName: 'A', webhookName: 'W', friendName: 'B', payload: { lineName: ' ' } });
+    expect(text).toBe('[info][title]📥 W（A）[/title]B さん[/info]');
   });
 });

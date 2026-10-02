@@ -22,6 +22,11 @@ vi.mock('../services/event-bus.js', () => ({
   fireEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../services/chatwork.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/chatwork.js')>()),
+  notifyChatworkAndRemember: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   getIncomingWebhooks,
   getIncomingWebhookById,
@@ -35,6 +40,7 @@ import {
   getLineAccountById,
 } from '@line-crm/db';
 import { fireEvent } from '../services/event-bus.js';
+import { notifyChatworkAndRemember } from '../services/chatwork.js';
 import { webhooks } from './webhooks.js';
 
 const VALID_SECRET = 'a'.repeat(32);
@@ -663,5 +669,52 @@ describe('POST /api/webhooks/incoming/:id/receive — friendId', () => {
     const res = await signedReceive({ ping: true });
     expect(res.status).toBe(200);
     expect(getFriendById).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/webhooks/incoming/:id/receive — Chatwork 通知', () => {
+  const cwEnv = { ...baseEnv, CHATWORK_API_TOKEN: 'cw-token', CHATWORK_OWNER_ACCOUNT_ID: '1111' };
+
+  test('友だちのアカウントにルームがあれば、その友だちを返信先にして通知する', async () => {
+    vi.mocked(getFriendById).mockResolvedValue({ id: 'friend-1', line_account_id: 'acc-1', display_name: 'abe' } as never);
+    vi.mocked(getLineAccountById).mockResolvedValue({
+      id: 'acc-1',
+      name: 'サミットmnp1001',
+      channel_access_token: 'acc-token',
+      chatwork_room_id: '999',
+    } as never);
+
+    const res = await signedReceive({ friendId: 'friend-1', lineName: 'あべ' }, cwEnv);
+    expect(res.status).toBe(200);
+    expect(notifyChatworkAndRemember).toHaveBeenCalledWith(
+      baseEnv.DB,
+      { apiToken: 'cw-token', roomId: '999', accountName: 'サミットmnp1001', ownerAccountId: '1111' },
+      expect.stringContaining('abe さん\nフォームに書いたLINE名: あべ'),
+      'friend-1',
+      'acc-1',
+    );
+  });
+
+  test('ルームの無いアカウントの友だちでは通知しない', async () => {
+    vi.mocked(getFriendById).mockResolvedValue({ id: 'friend-1', line_account_id: 'acc-1' } as never);
+    vi.mocked(getLineAccountById).mockResolvedValue({ id: 'acc-1', name: 'x', channel_access_token: 't', chatwork_room_id: null } as never);
+
+    await signedReceive({ friendId: 'friend-1' }, cwEnv);
+    expect(notifyChatworkAndRemember).not.toHaveBeenCalled();
+  });
+
+  test('友だちに結びつかない受信では通知しない', async () => {
+    vi.mocked(getFriendById).mockResolvedValue(null as never);
+
+    await signedReceive({ friendId: 'nope' }, cwEnv);
+    expect(notifyChatworkAndRemember).not.toHaveBeenCalled();
+  });
+
+  test('CHATWORK_API_TOKEN が無ければ通知しない', async () => {
+    vi.mocked(getFriendById).mockResolvedValue({ id: 'friend-1', line_account_id: 'acc-1' } as never);
+    vi.mocked(getLineAccountById).mockResolvedValue({ id: 'acc-1', name: 'x', channel_access_token: 't', chatwork_room_id: '999' } as never);
+
+    await signedReceive({ friendId: 'friend-1' }, baseEnv);
+    expect(notifyChatworkAndRemember).not.toHaveBeenCalled();
   });
 });

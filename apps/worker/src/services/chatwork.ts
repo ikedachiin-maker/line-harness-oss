@@ -136,6 +136,9 @@ export function stripChatworkReplyMarkup(body: string): string {
   return body
     .replace(/\[qt\][\s\S]*?\[\/qt\]/gi, '')
     .replace(/\[info\][\s\S]*?\[\/info\]/gi, '')
+    // 今の「返信」ボタンは [rp …] の直後に相手の表示名を地の文で入れる（例: 通知ボットさん）。
+    // タグだけ消すとお客さんのLINEに「池田チャッピーさん」と届くので、同じ行の「〜さん」まで落とす
+    .replace(/\[rp\s+aid=\d+\s+to=\d+-\d+\][^\n[]{0,40}?さん[ \t]*/gi, '')
     .replace(/\[rp\s+aid=\d+\s+to=\d+-\d+\]/gi, '')
     .replace(/\[To:\d+\]/gi, '')
     .replace(/\[(?:pname|piconname):\d+\]\s*さん/gi, '')
@@ -166,6 +169,26 @@ export function formatFollowNotice(p: { accountName: string; friendName: string 
 
 export function formatUnfollowNotice(p: { accountName: string; friendName: string }): string {
   return `[info][title]🚫 ブロック（${safeText(p.accountName)}）[/title]${safeText(p.friendName)} さんがブロックしました。[/info]`;
+}
+
+/** 受信Webhook（外部フォームの送信など）が友だちに結びついたときの通知 */
+export function formatIncomingWebhookNotice(p: {
+  accountName: string;
+  webhookName: string;
+  friendName: string;
+  payload: unknown;
+}): string {
+  // 本文のうち人が読んで意味のある項目だけ載せる（受付番号や時刻の生値は載せない）
+  const labels: Record<string, string> = { lineName: 'フォームに書いたLINE名', decision: '判定', row: 'シートの行' };
+  const fields = p.payload && typeof p.payload === 'object' ? (p.payload as Record<string, unknown>) : {};
+  const lines = Object.entries(labels)
+    .map(([key, label]) => {
+      const v = fields[key];
+      return typeof v === 'string' || typeof v === 'number' ? `${label}: ${String(v).trim()}` : '';
+    })
+    .filter((l) => l && !l.endsWith(': '));
+  const body = [`${p.friendName} さん`, ...lines].join('\n');
+  return `[info][title]📥 ${safeText(p.webhookName)}（${safeText(p.accountName)}）[/title]${safeText(body)}[/info]`;
 }
 
 export function formatSentConfirmation(friendName: string): string {
