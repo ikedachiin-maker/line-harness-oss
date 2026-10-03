@@ -406,7 +406,9 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
     );
 
     // 友だちのアカウントに Chatwork ルームがあれば知らせる（フォーム送信を LINE の受信と同じルームで気づけるように）。
-    // 通知は返信先として記録するので、この投稿に「返信」すればその友だちの LINE に届く。失敗しても受信は成功で返す
+    // 返信先としては記録しない。ルームに返信タグなしで書くと「直近の記録」の相手に届くので、
+    // ここで記録するとシートの判定やフォーム送信のたびに送り先が入れ替わり、LINE をくれた人ではない相手に届いてしまう。
+    // 失敗しても受信は成功で返す
     if (friendId && account?.chatwork_room_id && c.env.CHATWORK_API_TOKEN) {
       await notifyChatworkAndRemember(
         c.env.DB,
@@ -422,7 +424,7 @@ webhooks.post('/api/webhooks/incoming/:id/receive', async (c) => {
           friendName: friendName || '（名前不明）',
           payload,
         }),
-        friendId,
+        null,
         lineAccountId,
       );
     }

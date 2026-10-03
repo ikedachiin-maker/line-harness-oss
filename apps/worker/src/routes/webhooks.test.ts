@@ -675,7 +675,7 @@ describe('POST /api/webhooks/incoming/:id/receive — friendId', () => {
 describe('POST /api/webhooks/incoming/:id/receive — Chatwork 通知', () => {
   const cwEnv = { ...baseEnv, CHATWORK_API_TOKEN: 'cw-token', CHATWORK_OWNER_ACCOUNT_ID: '1111' };
 
-  test('友だちのアカウントにルームがあれば、その友だちを返信先にして通知する', async () => {
+  test('友だちのアカウントにルームがあれば通知する（返信先としては記録しない）', async () => {
     vi.mocked(getFriendById).mockResolvedValue({ id: 'friend-1', line_account_id: 'acc-1', display_name: 'abe' } as never);
     vi.mocked(getLineAccountById).mockResolvedValue({
       id: 'acc-1',
@@ -690,7 +690,7 @@ describe('POST /api/webhooks/incoming/:id/receive — Chatwork 通知', () => {
       baseEnv.DB,
       { apiToken: 'cw-token', roomId: '999', accountName: 'サミットmnp1001', ownerAccountId: '1111' },
       expect.stringContaining('abe さん\nフォームに書いたLINE名: あべ'),
-      'friend-1',
+      null,
       'acc-1',
     );
   });
