@@ -24,6 +24,11 @@ binding = "DB"
 database_name = "line-crm"
 database_id = "b3fa01fd-70d2-4f47-99c5-ad09f4c06471"
 
+# GitHub Actions のデプロイはこの既定の設定を使う（[env.production] は読まない）。
+# ここに無いと本番で c.env.IMAGES が undefined になり、画像アップロード・リッチメニュー画像が 500 になる。
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "line-harness-images"
 
 [triggers]
 crons = ["* * * * *", "0 */6 * * *"]
